@@ -37,10 +37,10 @@ jobs:
         working-directory: backend
       - run: python manage.py test core.tests -v 2
         working-directory: backend
-      - name: Probe public official sources (diagnostic)
+      - name: Probe public official discovery (diagnostic)
         run: python probe_official.py
         working-directory: backend
-        timeout-minutes: 2
+        timeout-minutes: 4
       - uses: actions/upload-artifact@v4
         with:
           name: official-source-probe

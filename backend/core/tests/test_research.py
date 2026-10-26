@@ -208,3 +208,17 @@ class ResearchTests(TestCase):
         self.assertEqual(results[0][1].url,target)
         self.assertEqual(attempts,2)
         self.assertEqual(errors,[])
+
+    def test_corrupt_pdf_keeps_downloadable_snapshot(self):
+        job=enqueue(self.user,kind='import',url=URL)
+        with patch('core.research.OfficialFetcher') as fetcher:
+            fetcher.return_value.fetch.return_value=Snapshot(URL,b'%PDF-broken','application/pdf')
+            process_research_once()
+        job.refresh_from_db()
+        self.assertEqual(job.state,'done')
+        item=job.result['items'][0]
+        self.assertIn('人工处理',item['notice'])
+        self.assertEqual(item['excerpts'],[])
+        version=DocumentVersion.objects.get(pk=item['version_id'])
+        self.assertEqual(version.state,'draft')
+        self.assertEqual(version.file.read(),b'%PDF-broken')

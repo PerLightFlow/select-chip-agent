@@ -94,3 +94,17 @@ class OfficialHTTPTests(unittest.TestCase):
         with patch.object(fetcher,'_request') as req, self.assertRaises(FetchError):
             fetcher.fetch('https://docs.espressif.com/doc')
         req.assert_not_called()
+
+    def test_vendor_crawl_delay_uses_job_budget_not_socket_timeout(self):
+        fetcher=OfficialFetcher(seconds=30)
+        # The real Espressif robots policy requests a 10-second delay.
+        with patch('core.official_http.time.monotonic',return_value=100), \
+             patch('core.official_http.time.sleep') as sleep, \
+             patch.object(fetcher,'_request',return_value=(200,{},b'User-agent: *\nCrawl-delay: 10\nAllow: /')):
+            fetcher.deadline=130
+            fetcher.last_request['www.espressif.com']=100
+            fetcher._robot_policy('https://www.espressif.com/en/products/socs')
+            sleep.assert_called_once_with(10)
+            fetcher.deadline=105
+            with self.assertRaisesRegex(FetchError,'预算'):
+                fetcher._robot_policy('https://www.espressif.com/en/products/socs')

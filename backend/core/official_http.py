@@ -173,7 +173,7 @@ class OfficialFetcher:
             delay = max(delay, rate.seconds / rate.requests)
         wait = delay - (time.monotonic() - self.last_request.get(host, 0))
         if wait > 0:
-            if wait > 10 or wait >= self.remaining():
+            if wait >= self.deadline - time.monotonic():
                 raise FetchError('官网抓取间隔超出当前任务预算，请稍后重试')
             time.sleep(wait)
 

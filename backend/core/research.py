@@ -239,8 +239,9 @@ def ingest(snapshot, title, job):
                 notice += ' 尚未配置向量服务，文档保留为草稿；配置后可在后台生成索引。'
         else:
             notice = '内容未变化，复用已保存版本。' if digest == previous else '检测到回退到已保存版本，需人工核对。'
-    except (ValueError, OSError) as exc:
-        notice = '原件已保存，解析需人工处理：' + str(exc)[:200]
+    except Exception as exc:
+        message = str(exc)[:200] if isinstance(exc, ValueError) else '文件格式或文本提取失败'
+        notice = '原件已保存，解析需人工处理：' + message
         if created:
             version.extraction_notice = notice
             version.save(update_fields=['extraction_notice'])
