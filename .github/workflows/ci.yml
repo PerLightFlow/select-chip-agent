@@ -1,6 +1,7 @@
 name: Test and build
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
@@ -58,3 +59,40 @@ jobs:
           path: |
             frontend/dist
             frontend/package-lock.json
+  smoke:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Configure isolated test environment
+        run: |
+          cp .env.example .env
+          sed -i 's/replace-with-a-long-random-value/ci-only-not-for-production/' .env
+          sed -i 's/replace-with-a-long-random-password/ci-only-database-password/' .env
+      - run: docker compose up --build -d --wait --wait-timeout 180
+      - name: Provision test user and fixtures
+        run: |
+          docker compose exec -T -e DJANGO_SUPERUSER_USERNAME=ci-admin -e DJANGO_SUPERUSER_EMAIL=ci@example.invalid -e DJANGO_SUPERUSER_PASSWORD=ci-only-strong-password backend python manage.py createsuperuser --noinput
+          docker compose exec -T backend python manage.py seed_demo
+      - run: npm install --no-audit --no-fund
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
+        working-directory: frontend
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose logs --tail 100
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-test-results
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+      - run: docker compose down -v
+        if: always()

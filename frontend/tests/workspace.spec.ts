@@ -1,0 +1,30 @@
+import { test, expect } from '@playwright/test';
+
+test('login, create a project, select chips and search published evidence', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('用户名').fill('ci-admin');
+  await page.getByLabel('密码').fill('ci-only-strong-password');
+  await page.getByRole('button', {name: /登录工作台/}).click();
+  await expect(page.getByRole('heading', {name:'从需求，找到合适的芯片。'})).toBeVisible();
+  await page.getByLabel('演示数据').check();
+  await page.getByLabel('项目名称').fill('CI Linux requirement');
+  await page.getByLabel('产品需求').fill('需要 Linux 系统，查询低功耗休眠说明。');
+  await page.getByRole('button', {name:'添加', exact:true}).click();
+  await page.getByLabel('参数字段').fill('os');
+  await page.getByLabel('比较方式').selectOption('eq');
+  await page.getByLabel('参数值').fill('Linux');
+  await page.getByLabel('单位', {exact:true}).fill('');
+  await page.getByRole('button', {name:'保存并开始选型'}).click();
+  await expect(page.getByRole('heading', {name:'DEMO-SOC-B'})).toBeVisible();
+  await expect(page.getByText('满足已确认约束', {exact:true})).toBeVisible();
+  await expect(page.getByText('不符合', {exact:true})).toBeVisible();
+  await expect(page.getByRole('link', {name:'导出报告'})).toHaveAttribute('href', /\/api\/runs\/\d+\/export\//);
+  await page.getByRole('button', {name:'文档语义检索', exact:true}).click();
+  await page.getByLabel('检索问题').fill('低功耗休眠');
+  await page.getByRole('button', {name:'检索证据'}).click();
+  await expect(page.getByText('演示资料 · 虚构参数，仅用于验证流程', {exact:true})).toBeVisible();
+  await expect(page.getByText('未配置向量服务，当前仅使用关键词检索', {exact:true})).toBeVisible();
+  await page.setViewportSize({width:390,height:844});
+  await expect(page.getByRole('button', {name:'检索证据'})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+});

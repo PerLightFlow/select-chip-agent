@@ -10,3 +10,5 @@ staticfiles/
 .pytest_cache/
 coverage.xml
 .coverage
+frontend/playwright-report/
+frontend/test-results/
