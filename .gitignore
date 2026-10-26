@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+node_modules/
+frontend/dist/
+media/
+staticfiles/
+*.sqlite3
+.pytest_cache/
+coverage.xml
+.coverage

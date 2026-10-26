@@ -1,0 +1,60 @@
+name: Test and build
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: chipagent
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: chipagent
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U chipagent"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DJANGO_SECRET_KEY: ci-only-not-for-production
+      POSTGRES_USER: chipagent
+      POSTGRES_PASSWORD: ci-password
+      POSTGRES_DB: chipagent
+      POSTGRES_HOST: localhost
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements.txt
+      - run: python manage.py check
+        working-directory: backend
+      - run: python manage.py makemigrations --check --dry-run
+        working-directory: backend
+      - run: python manage.py test core.tests -v 2
+        working-directory: backend
+      - run: pip freeze > backend/requirements.resolved.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-dependencies
+          path: backend/requirements.resolved.txt
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: |
+            frontend/dist
+            frontend/package-lock.json
