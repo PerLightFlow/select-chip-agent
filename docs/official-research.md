@@ -61,7 +61,6 @@ HTTP 层逐次验证白名单和重定向，解析 DNS 后拒绝非公网地址�
 
 可手动运行：
 
-    cd backend
-    python probe_official.py
+    docker compose exec backend python probe_official.py
 
 本机无法联网不影响已有知识库检索；官网失败不能被解释为芯片不支持某能力。

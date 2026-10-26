@@ -23,6 +23,7 @@ def serialize_job(job):
     for item in items:
         v = states.get(item['version_id'])
         item['state'] = v.state if v else 'unavailable'
+        item['index_error'] = v.error if v else ''
     result['items'] = items
     return {'id':job.pk,'kind':job.kind,'query':job.query,'url':job.url,'chip':job.chip,'sdk':job.sdk,
         'state':job.state,'result':result,'error':job.error,'created_at':job.created_at,'updated_at':job.updated_at}

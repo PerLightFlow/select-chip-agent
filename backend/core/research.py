@@ -79,6 +79,7 @@ def discover(query, fetcher):
     # Catalog pages link to real product pages; no guessed product URL or third-party search service.
     todo = [(s['url'], 0) for s in seeds]
     seen, candidates, errors = set(), {}, []
+    link_labels = {}
     attempts = 0
     while todo and attempts < settings.OFFICIAL_MAX_PAGES:
         url, depth = todo.pop(0)
@@ -89,13 +90,22 @@ def discover(query, fetcher):
         try:
             snapshot = fetcher.fetch(url)
             title, body, links = html_info(snapshot)
-            score = relevance(query, title, snapshot.url, body[:100000])
+            score = relevance(query, title + ' ' + link_labels.get(url,''), snapshot.url, body[:100000])
+            if snapshot.content_type in ('text/html','application/xhtml+xml'):
+                # A model in a query-string or link label alone does not prove the returned page contains it.
+                if len(body.strip()) < 40 or (models and not any(
+                        model_present(m,title + '\n' + body) for m in models)):
+                    if score > 0 and depth:
+                        errors.append({'url':snapshot.url,'error':'页面正文不足或没有目标型号，可能需要动态渲染；可导入直接数据手册链接'})
+                    score = 0
             if score > 0:
                 candidates[snapshot.url] = (score, snapshot, title)
             if depth < 2:
                 ranked = sorted(links, key=lambda item: relevance(query, item[1], item[0]), reverse=True)
                 matches = [(link, depth + 1) for link, label in ranked
                            if link not in seen and relevance(query, label, link) > 0][:6]
+                for link, label in ranked:
+                    link_labels.setdefault(link,label)
                 todo = matches + todo
         except (FetchError, ValueError) as exc:
             errors.append({'url': url, 'error': str(exc)[:300]})

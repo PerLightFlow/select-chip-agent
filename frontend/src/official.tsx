@@ -3,7 +3,7 @@ import { Globe, RefreshCw, Download, ArrowUpRight } from 'lucide-react';
 import { api } from './api';
 
 type Proposal = {chip:string;key:string;value:unknown;unit:string;conditions:string;quote:string;locator:string};
-type Item = {version_id:number;title:string;url:string;state:string;fetched_at:string;checked_at:string;change:string;notice:string;proposed_facts:Proposal[];excerpts:{locator:string;text:string}[]};
+type Item = {version_id:number;title:string;url:string;state:string;fetched_at:string;checked_at:string;change:string;notice:string;index_error?:string;proposed_facts:Proposal[];excerpts:{locator:string;text:string}[]};
 type Job = {id:number;kind:string;query:string;url:string;state:string;error:string;created_at:string;result:{items?:Item[];notice?:string;errors?:{url:string;error:string}[]}};
 const stateLabels:Record<string,string> = {queued:'等待处理',running:'正在查询官网',done:'查询完成',failed:'查询失败',draft:'待整理',ready:'待审核',published:'已发布',indexing:'索引中',withdrawn:'已撤回'};
 const link=(url:string)=>url.startsWith('https://')?url:undefined;
@@ -18,7 +18,7 @@ export function ResearchStatus({jobId,staff}:{jobId:number;staff:boolean}) {
     const r=await api<Job>('official/jobs/'+jobId+'/');
     if(!active)return;
     setJob(r);setError('');
-    if(['queued','running'].includes(r.state))timer=setTimeout(poll,2500);
+    if(['queued','running'].includes(r.state)||r.result.items?.some(i=>['queued','indexing'].includes(i.state)))timer=setTimeout(poll,2500);
    }catch(e){if(active)setError(e instanceof Error?e.message:'读取联网任务失败');}
   }
   poll();return()=>{active=false;clearTimeout(timer);};
@@ -34,7 +34,7 @@ export function ResearchStatus({jobId,staff}:{jobId:number;staff:boolean}) {
    {job.result.items?.map(item=><article className="evidence-card" key={item.version_id}>
     <div className="evidence-heading"><strong>{item.title}</strong><span className="pill">{stateLabels[item.state]||item.state}</span><span className="pill">{({new:'首次采集',changed:'发现变化',unchanged:'内容未变'} as Record<string,string>)[item.change]}</span></div>
     <p className="small muted">抓取时间：{item.fetched_at?new Date(item.fetched_at).toLocaleString():'未知'} · 本次检查：{new Date(item.checked_at).toLocaleString()}</p>
-    {item.notice&&<p className="small muted">{item.notice}</p>}
+    {item.notice&&<p className="small muted">{item.notice}</p>}{item.index_error&&<p className="notice warning">索引未完成：{item.index_error}</p>}
     {item.excerpts.map((x,i)=><div key={i}><span className="pill">{x.locator}</span><p className="excerpt">{x.text}</p></div>)}
     {item.proposed_facts.length>0&&<details><summary>参数建议 · {item.proposed_facts.length} 项待核验</summary>
      {item.proposed_facts.map((p,i)=><div className="fact-proposal" key={i}><strong>{p.chip} · {p.key} = {JSON.stringify(p.value)} {p.unit}</strong><p>{p.conditions||'原文适用条件需要人工核对'}</p><blockquote>{p.quote}</blockquote><span>{p.locator}</span></div>)}

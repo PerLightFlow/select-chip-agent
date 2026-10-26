@@ -222,3 +222,16 @@ class ResearchTests(TestCase):
         version=DocumentVersion.objects.get(pk=item['version_id'])
         self.assertEqual(version.state,'draft')
         self.assertEqual(version.file.read(),b'%PDF-broken')
+
+    def test_discovery_ignores_dynamic_shell_with_model_only_in_url(self):
+        seed='https://www.espressif.com/en/products/socs'
+        shell='https://documentation.espressif.com/en/documentList?s=ESP32-P4'
+        def fetch(url):
+            if url==seed:
+                return Snapshot(url,('<a href="'+shell+'">ESP32-P4 documentation</a>').encode(),'text/html')
+            return Snapshot(url,b'<html><title>Document portal</title><main>Please enable JavaScript to load the technical documentation list.</main></html>','text/html')
+        with patch('core.research.REGISTRY',{'seeds':[{'vendor':'espressif','url':seed}]}):
+            fake=type('Fetcher',(),{'fetch':staticmethod(fetch)})()
+            found,errors,_=discover('ESP32-P4',fake)
+        self.assertEqual(found,[])
+        self.assertTrue(any('动态' in e['error'] for e in errors))
