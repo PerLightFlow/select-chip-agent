@@ -1,5 +1,5 @@
 from unittest.mock import patch
-from django.test import TestCase, override_settings, Client
+from django.test import TransactionTestCase, override_settings, Client
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from rest_framework.test import APIClient
@@ -9,7 +9,7 @@ from core.providers import embedding_profile, ProviderUnavailable
 
 
 @override_settings(EMBEDDING_BASE_URL='',EMBEDDING_API_KEY='',EMBEDDING_MODEL='')
-class KnowledgeTests(TestCase):
+class KnowledgeTests(TransactionTestCase):
     def setUp(self):
         self.user=get_user_model().objects.create_user(username='alice',password='long-example-password')
         self.other=get_user_model().objects.create_user(username='bob',password='another-example-password')

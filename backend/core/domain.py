@@ -51,7 +51,7 @@ def evaluate(requirement, fact):
             return {'status': 'unknown', 'reason': '字段不是能力列表'}
         ok = expected in actual
     else:
-        if isinstance(actual, bool) != isinstance(expected, bool):
+        if isinstance(actual, bool) != isinstance(expected, bool) or isinstance(actual, str) != isinstance(expected, str) or isinstance(actual, (list, dict)):
             return {'status': 'unknown', 'reason': '字段类型不一致'}
         ok = actual == expected
     return {'status': 'pass' if ok else 'fail', 'reason': '满足该项约束' if ok else '不满足该项约束',
