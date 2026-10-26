@@ -103,7 +103,7 @@ cd backend
 python -m unittest core.tests.test_domain -v
 ```
 
-GitHub Actions 使用真实 PostgreSQL + pgvector 验证迁移、版本过滤、撤回、账号隔离、CSRF、规则与向量查询，再执行前端 TypeScript 检查和生产构建。向量测试使用受控向量夹具，不代表已验证真实 Embedding 模型质量。CI 保存依赖解析结果与前端构建产物。
+GitHub Actions 使用真实 PostgreSQL + pgvector 验证迁移、版本过滤、撤回、账号隔离、CSRF、规则与向量查询，再执行前端 TypeScript 检查和生产构建。另通过 Docker Compose 启动整套服务，使用 Chromium 验证登录、需求保存、选型、证据检索及移动宽度布局。向量测试使用受控向量夹具，不代表已验证真实 Embedding 模型质量。CI 保存依赖解析结果与前端构建产物。
 
 ## 交付边界与后续任务
 

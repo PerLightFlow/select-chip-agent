@@ -14,6 +14,9 @@ test('login, create a project, select chips and search published evidence', asyn
   await page.getByLabel('比较方式').selectOption('eq');
   await page.getByLabel('参数值').fill('Linux');
   await page.getByLabel('单位', {exact:true}).fill('');
+  await page.getByRole('button', {name:'提取需求建议'}).click();
+  await expect(page.getByText('未配置对话模型，使用表单及规则流程', {exact:true})).toBeVisible();
+  await expect(page.getByLabel('参数值')).toHaveValue('Linux');
   await page.getByRole('button', {name:'保存并开始选型'}).click();
   await expect(page.getByRole('heading', {name:'DEMO-SOC-B'})).toBeVisible();
   await expect(page.getByText('满足已确认约束', {exact:true})).toBeVisible();
