@@ -51,10 +51,10 @@ def extract(version):
             return pages
         if suffix not in {'txt', 'md', 'html', 'htm'}:
             raise ValueError('只支持 PDF、TXT、Markdown 或 HTML')
-        text = f.read().decode('utf-8-sig')
+        raw = f.read()
     if suffix in {'html', 'htm'}:
-        soup = BeautifulSoup(text, 'html.parser')
-        for node in soup(['script', 'style', 'nav']):
+        soup = BeautifulSoup(raw, 'html.parser')
+        for node in soup(['script', 'style', 'nav', 'header', 'footer', 'noscript', 'form']):
             node.decompose()
         for table in soup.find_all('table'):
             if table.select('[rowspan], [colspan]'):
@@ -63,6 +63,8 @@ def extract(version):
                     for row in table.find_all('tr')]
             table.replace_with('\n\n' + '\n'.join(rows) + '\n\n')
         text = soup.get_text('\n')
+    else:
+        text = raw.decode('utf-8-sig')
     return [('正文', text)]
 
 

@@ -31,3 +31,38 @@ test('login, create a project, select chips and search published evidence', asyn
   await expect(page.getByRole('button', {name:'检索证据'})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
 });
+
+
+test('official URL import validates the source and research results show review status', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('用户名').fill('ci-admin');
+  await page.getByLabel('密码').fill('ci-only-strong-password');
+  await page.getByRole('button', {name:/登录工作台/}).click();
+  await page.getByRole('button', {name:'官网资料',exact:true}).click();
+  await expect(page.getByRole('heading', {name:'查询官方资料'})).toBeVisible();
+  await page.getByLabel('官网资料链接').fill('https://127.0.0.1/private');
+  await page.getByRole('button',{name:'导入官网链接'}).click();
+  await expect(page.getByRole('alert')).toContainText('官方来源清单');
+
+  // Keep this UI regression deterministic; real worker/network behavior is verified by backend tests/probes.
+  const job={id:4321,kind:'search',query:'ESP32-P4 fixture',url:'',state:'done',error:'',created_at:new Date().toISOString(),
+    result:{notice:'官网新发现资料，尚未审核，不参与已确认的硬约束判定。',items:[{
+      version_id:123,title:'Official fixture for UI testing',url:'https://docs.espressif.com/fixture.html',
+      state:'draft',fetched_at:new Date().toISOString(),checked_at:new Date().toISOString(),change:'new',
+      notice:'参数待人工核验',proposed_facts:[],excerpts:[{locator:'正文',text:'Fictional fixture only.'}]
+    }],errors:[]}};
+  await page.route('**/api/official/jobs/',async route=>{
+    if(route.request().method()==='POST')await route.fulfill({status:202,json:job});
+    else await route.fulfill({json:{items:[job]}});
+  });
+  await page.route('**/api/official/jobs/4321/',route=>route.fulfill({json:job}));
+  await page.getByLabel('官方查询关键词').fill('ESP32-P4 fixture');
+  await page.getByRole('button',{name:'查询官网',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'官方来源查询 #4321'})).toBeVisible();
+  await expect(page.getByText('查询完成',{exact:true})).toBeVisible();
+  await expect(page.getByText('待整理',{exact:true})).toBeVisible();
+  await expect(page.getByRole('link',{name:'下载抓取快照'})).toHaveAttribute('href','/api/official/jobs/4321/files/123/');
+  await expect(page.getByRole('link',{name:'核验与发布'})).toHaveAttribute('href','/admin/core/documentversion/123/change/');
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
+});

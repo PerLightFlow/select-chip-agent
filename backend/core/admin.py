@@ -1,6 +1,11 @@
 from django.contrib import admin, messages
 from .models import Document, DocumentVersion, Chunk, Chip, Fact, Algorithm, AuditEvent, Project, SelectionRun, SearchRun
 from .knowledge import queue_index, publish_version, withdraw_version
+from .models import OfficialSource, ResearchJob
+from .research import adopt_proposals, enqueue
+from .official_http import official_url
+from django.utils import timezone
+from django import forms
 
 
 @admin.register(Document)
@@ -17,12 +22,13 @@ class DocumentAdmin(admin.ModelAdmin):
 class VersionAdmin(admin.ModelAdmin):
     list_display = ['document', 'revision', 'state', 'attempts', 'updated_at']
     list_filter = ['state', 'document__is_demo']
-    readonly_fields = ['state','digest','embedding_profile','index_generation','error','attempts','updated_at','reviewed_by','published_at']
-    actions = ['queue', 'publish', 'withdraw']
+    readonly_fields = ['state','digest','embedding_profile','index_generation','error','attempts','updated_at','reviewed_by','published_at','proposed_facts','extraction_notice','fetched_at','source_digest']
+    actions = ['queue', 'publish', 'withdraw', 'adopt']
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.state not in {'draft','failed'}:
-            return [f.name for f in self.model._meta.fields]
+            editable = {'chip_models','sdk_version','task'} if obj.state == 'ready' else set()
+            return [f.name for f in self.model._meta.fields if f.name not in editable]
         return self.readonly_fields
 
     def has_delete_permission(self, request, obj=None):
@@ -43,6 +49,15 @@ class VersionAdmin(admin.ModelAdmin):
     @admin.action(description='审核通过并发布所选版本')
     def publish(self, request, queryset):
         self.perform(request, queryset, publish_version)
+
+    @admin.action(description='已逐项核验：采纳无冲突参数建议（须先发布文档）')
+    def adopt(self, request, queryset):
+        for obj in queryset:
+            try:
+                result = adopt_proposals(obj.pk, request.user)
+                self.message_user(request, f"新增 {len(result['accepted'])} 项；冲突 {len(result['conflicts'])} 项；跳过 {len(result['skipped'])} 项。详细差异见审计记录。")
+            except ValueError as exc:
+                self.message_user(request, str(exc), messages.ERROR)
 
     @admin.action(description='撤回所选版本')
     def withdraw(self, request, queryset):
@@ -99,3 +114,52 @@ class HistoryAdmin(admin.ModelAdmin):
 admin.site.register(Algorithm)
 admin.site.register(Project)
 admin.site.site_header = 'Select Chip · 公共知识库管理'
+
+
+class SourceForm(forms.ModelForm):
+    class Meta:
+        model = OfficialSource
+        fields = '__all__'
+
+    def clean_url(self):
+        try:
+            return official_url(self.cleaned_data['url'])
+        except ValueError as exc:
+            raise forms.ValidationError(str(exc))
+
+    def clean_refresh_hours(self):
+        value = self.cleaned_data['refresh_hours']
+        if value > 8760:
+            raise forms.ValidationError('自动检查间隔为 0 至 8760 小时；0 表示关闭')
+        return value
+
+
+@admin.register(OfficialSource)
+class SourceAdmin(admin.ModelAdmin):
+    form = SourceForm
+    list_display = ['url','last_checked_at','refresh_hours','next_check_at','last_error']
+    readonly_fields = ['document','last_digest','last_checked_at','last_error','next_check_at']
+    actions = ['refresh_now']
+
+    def get_readonly_fields(self, request, obj=None):
+        return self.readonly_fields + (['url'] if obj else [])
+
+    def save_model(self, request, obj, form, change):
+        obj.next_check_at = timezone.now() if obj.refresh_hours else None
+        super().save_model(request,obj,form,change)
+
+    @admin.action(description='检查官网是否更新（不会自动发布）')
+    def refresh_now(self, request, queryset):
+        for source in queryset:
+            try:
+                job = enqueue(request.user,kind='import',url=source.url)
+                self.message_user(request,f'已提交联网任务 #{job.pk}')
+            except ValueError as exc:
+                self.message_user(request,str(exc),messages.ERROR)
+
+
+@admin.register(ResearchJob)
+class ResearchJobAdmin(HistoryAdmin):
+    list_display = ['id','kind','chip','state','owner','created_at']
+    list_filter = ['state','kind']
+    readonly_fields = [f.name for f in ResearchJob._meta.fields]

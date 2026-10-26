@@ -61,3 +61,9 @@ ALLOW_KEYWORD_ONLY = os.getenv('ALLOW_KEYWORD_ONLY', '0') == '1'
 LLM_BASE_URL = os.getenv('LLM_BASE_URL', '').rstrip('/')
 LLM_API_KEY = os.getenv('LLM_API_KEY', '')
 LLM_MODEL = os.getenv('LLM_MODEL', '')
+
+# Official research fetches public HTTPS documents through a bounded worker.
+OFFICIAL_ONLINE_ENABLED = os.getenv('OFFICIAL_ONLINE_ENABLED', '1') == '1'
+OFFICIAL_FETCH_SECONDS = 90
+OFFICIAL_MAX_PAGES = 8
+OFFICIAL_MAX_IMPORTS = 3

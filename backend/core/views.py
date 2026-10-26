@@ -16,6 +16,7 @@ from .domain import validate_requirements
 from .knowledge import search_documents, visible_chunks, serialize_chunk
 from .providers import embedding_profile
 from .workflow import parse_requirements, selection_graph
+from .research import enqueue, model_names
 
 
 class LoginThrottle(AnonRateThrottle):
@@ -114,7 +115,20 @@ def project_runs(request, project_id):
         'task':project.task,'revision':project.revision,'demo':demo}
     state = selection_graph.invoke({'requirements':project.requirements,'description':project.description,
         'task':project.task,'demo':demo})
-    run = SelectionRun.objects.create(project=project,snapshot=snapshot,result=state['result'])
+    result = state['result']
+    needs_research = (not result['candidates'] or
+        any(c['status'] == 'unknown' for c in result['candidates']) or not result['evidence']['items'] or
+        (project.task and not any(c['algorithms'] for c in result['candidates'])))
+    if request.data.get('auto_online', False) is True and not demo and needs_research:
+        query = project.description.strip() or ' '.join(r['key'] for r in project.requirements)
+        models = model_names(query)
+        if query:
+            try:
+                job = enqueue(request.user,query=query[:500],chip=models[0] if len(models)==1 else '')
+                result['online'] = {'job_id':job.pk,'notice':'资料不足，已提交官方来源查询；查询结果需审核后才影响选型。'}
+            except ValueError as exc:
+                result['online'] = {'notice':str(exc)}
+    run = SelectionRun.objects.create(project=project,snapshot=snapshot,result=result)
     return Response({'id':run.pk,'result':run.result,'snapshot':snapshot,'created_at':run.created_at},status=201)
 
 
@@ -158,6 +172,13 @@ def search(request):
         return Response({'error':'过滤条件格式错误'},status=400)
     filters['demo'] = request.data.get('demo',False) is True
     result = search_documents(query,**filters)
+    if request.data.get('auto_online',False) is True and not filters['demo'] and not result['items']:
+        models = model_names(query)
+        try:
+            job = enqueue(request.user,query=query[:500],chip=filters['chip'] or (models[0] if len(models)==1 else ''),sdk=filters['sdk'])
+            result['online'] = {'job_id':job.pk,'notice':'知识库暂无匹配资料，已在后台查询官方来源。'}
+        except ValueError as exc:
+            result['online'] = {'notice':str(exc)}
     run = SearchRun.objects.create(owner=request.user,query=query,filters=filters,result=result)
     return Response({**result,'search_id':run.pk})
 

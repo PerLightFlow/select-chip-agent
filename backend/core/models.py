@@ -29,6 +29,10 @@ class DocumentVersion(models.Model):
     digest = models.CharField(max_length=64, blank=True)
     embedding_profile = models.CharField(max_length=200, blank=True)
     index_generation = models.UUIDField(default=uuid.uuid4, editable=False)
+    proposed_facts = models.JSONField(default=list, blank=True)
+    extraction_notice = models.CharField(max_length=500, blank=True)
+    fetched_at = models.DateTimeField(null=True, blank=True)
+    source_digest = models.CharField(max_length=64, blank=True)
     error = models.CharField(max_length=250, blank=True)
     attempts = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
@@ -134,3 +138,36 @@ class AuditEvent(models.Model):
     target = models.CharField(max_length=160)
     detail = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class OfficialSource(models.Model):
+    url = models.URLField(max_length=1500, unique=True)
+    document = models.OneToOneField(Document, null=True, blank=True, on_delete=models.PROTECT, related_name='official_source')
+    last_digest = models.CharField(max_length=64, blank=True)
+    last_checked_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=300, blank=True)
+    # 0 disables polling; admins opt in per source.
+    refresh_hours = models.PositiveIntegerField(default=0)
+    next_check_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return self.url
+
+
+class ResearchJob(models.Model):
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    kind = models.CharField(max_length=20, choices=[('search', '官方资料查询'), ('import', '官网链接导入')])
+    query = models.CharField(max_length=500, blank=True)
+    url = models.URLField(max_length=1500, blank=True)
+    chip = models.CharField(max_length=120, blank=True)
+    sdk = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=20, default='queued',
+        choices=[(s, s) for s in ['queued', 'running', 'done', 'failed']])
+    result = models.JSONField(default=dict, blank=True)
+    error = models.CharField(max_length=300, blank=True)
+    lease = models.UUIDField(default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['state', 'created_at'], name='research_queue_idx')]

@@ -6,6 +6,7 @@ from django.db import transaction, close_old_connections
 from django.utils import timezone
 from core.models import DocumentVersion
 from core.knowledge import build_index
+from core.research import process_research_once, schedule_due_sources
 
 
 class Command(BaseCommand):
@@ -30,7 +31,9 @@ class Command(BaseCommand):
                     version_id = None
             if version_id:
                 build_index(version_id)
+            schedule_due_sources()
+            researched = process_research_once()
             if options['once']:
                 return
-            if not version_id:
+            if not version_id and not researched:
                 time.sleep(2)
