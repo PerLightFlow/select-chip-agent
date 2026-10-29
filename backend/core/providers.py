@@ -49,13 +49,18 @@ def embed(texts):
 def chat_json(system, user):
     if not all([settings.LLM_BASE_URL, settings.LLM_API_KEY, settings.LLM_MODEL]):
         raise ProviderUnavailable('未配置对话模型，使用表单及规则流程')
+    payload = {'model': settings.LLM_MODEL, 'temperature': settings.LLM_TEMPERATURE,
+        'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}],
+        'response_format': {'type': 'json_object'}, 'max_tokens': 1600}
+    if settings.LLM_THINKING:
+        if settings.LLM_THINKING not in {'enabled', 'disabled'}:
+            raise ProviderUnavailable('LLM_THINKING 必须为空、enabled 或 disabled')
+        payload['thinking'] = {'type': settings.LLM_THINKING}
     try:
         with httpx.Client(timeout=30, follow_redirects=False) as client:
             response = client.post(settings.LLM_BASE_URL + '/chat/completions',
                 headers={'Authorization': 'Bearer ' + settings.LLM_API_KEY},
-                json={'model': settings.LLM_MODEL, 'temperature': 0,
-                    'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}],
-                    'response_format': {'type': 'json_object'}, 'max_tokens': 1600})
+                json=payload)
             response.raise_for_status()
             content = response.json()['choices'][0]['message']['content']
             result = json.loads(content)

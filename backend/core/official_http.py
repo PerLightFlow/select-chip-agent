@@ -86,12 +86,13 @@ class Snapshot:
 
 
 class OfficialFetcher:
-    def __init__(self, seconds=90, max_bytes=10 * 1024 * 1024):
+    def __init__(self, seconds=90, max_bytes=10 * 1024 * 1024, validate_url=official_url):
         self.deadline = time.monotonic() + seconds
         self.max_bytes = max_bytes
         self.robots = {}
         self.last_request = {}
         self.visited_count = 0
+        self.validate_url = validate_url
 
     def remaining(self):
         left = self.deadline - time.monotonic()
@@ -146,10 +147,10 @@ class OfficialFetcher:
         if host not in self.robots:
             robot_url = f'https://{host}/robots.txt'
             for _ in range(4):
-                robot_url = official_url(robot_url, robots=True)
+                robot_url = self.validate_url(robot_url, robots=True)
                 status, headers, body = self._request(robot_url, 256 * 1024)
                 if status in (301, 302, 303, 307, 308):
-                    target = official_url(urljoin(robot_url, headers.get('location', '')), robots=True)
+                    target = self.validate_url(urljoin(robot_url, headers.get('location', '')), robots=True)
                     if urlsplit(target).hostname != host or urlsplit(target).path != '/robots.txt':
                         raise FetchError('robots 跳转需要人工核对')
                     robot_url = target
@@ -179,7 +180,7 @@ class OfficialFetcher:
 
     def fetch(self, url):
         for _ in range(4):
-            url = official_url(url)
+            url = self.validate_url(url)
             self.remaining()
             self._robot_policy(url)
             status, headers, body = self._request(url, self.max_bytes)

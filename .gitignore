@@ -12,3 +12,16 @@ coverage.xml
 .coverage
 frontend/playwright-report/
 frontend/test-results/
+
+# Local credentials, generated diagnostics and release artifacts
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+backend/official-source-probe.json
+backend/requirements.resolved.txt
+work/
+releases/
+backups/
+*.log

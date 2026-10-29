@@ -9,7 +9,7 @@ CSRF_TRUSTED_ORIGINS = list(filter(None, os.getenv('CSRF_TRUSTED_ORIGINS', '').s
 INSTALLED_APPS = [
     'django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes',
     'django.contrib.sessions', 'django.contrib.messages', 'django.contrib.staticfiles',
-    'django.contrib.postgres', 'rest_framework', 'core',
+    'django.contrib.postgres', 'rest_framework', 'core', 'assistant',
 ]
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware', 'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -44,7 +44,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 REST_FRAMEWORK = {'DEFAULT_AUTHENTICATION_CLASSES': ['rest_framework.authentication.SessionAuthentication'],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],
     'DEFAULT_THROTTLE_CLASSES': ['rest_framework.throttling.UserRateThrottle'],
-    'DEFAULT_THROTTLE_RATES': {'user': '120/minute', 'login': '10/minute'}}
+    'DEFAULT_THROTTLE_RATES': {'user': '120/minute', 'login': '10/minute', 'register': '30/minute'}}
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SECURE = os.getenv('COOKIE_SECURE', '0') == '1'
@@ -61,9 +61,20 @@ ALLOW_KEYWORD_ONLY = os.getenv('ALLOW_KEYWORD_ONLY', '0') == '1'
 LLM_BASE_URL = os.getenv('LLM_BASE_URL', '').rstrip('/')
 LLM_API_KEY = os.getenv('LLM_API_KEY', '')
 LLM_MODEL = os.getenv('LLM_MODEL', '')
+LLM_THINKING = os.getenv('LLM_THINKING', '').strip()
+LLM_TEMPERATURE = float(os.getenv('LLM_TEMPERATURE', '0'))
 
 # Official research fetches public HTTPS documents through a bounded worker.
 OFFICIAL_ONLINE_ENABLED = os.getenv('OFFICIAL_ONLINE_ENABLED', '1') == '1'
 OFFICIAL_FETCH_SECONDS = 90
 OFFICIAL_MAX_PAGES = 8
 OFFICIAL_MAX_IMPORTS = 3
+
+AGENT_SEARCH_URL = os.getenv('AGENT_SEARCH_URL', 'http://search:8080').rstrip('/')
+AGENT_SEARCH_ENGINES = os.getenv('AGENT_SEARCH_ENGINES', 'google cse')
+AGENT_WORKERS = int(os.getenv('AGENT_WORKERS', '8'))
+AGENT_MAX_STEPS = int(os.getenv('AGENT_MAX_STEPS', '16'))
+AGENT_TURN_SECONDS = int(os.getenv('AGENT_TURN_SECONDS', '300'))
+AGENT_MODEL_TIMEOUT = int(os.getenv('AGENT_MODEL_TIMEOUT', '120'))
+AGENT_RUNTIME = os.getenv('AGENT_RUNTIME', 'chat')
+CODEX_BINARY = os.getenv('CODEX_BINARY', '/usr/local/bin/codex')

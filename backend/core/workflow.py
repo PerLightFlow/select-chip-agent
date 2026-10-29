@@ -19,7 +19,11 @@ class SelectionState(TypedDict, total=False):
 def parse_requirements(text):
     prompt = '''你是嵌入式产品需求分析助手。只提取用户明确给出的约束，不猜测芯片参数。
 返回 JSON: {"requirements":[],"questions":[],"task":""}。questions 最多三个问题。
-requirements 每项为 {key,op,value,unit,hard,source,conditions}，source 必须是用户原文片段。
+requirements 每项包含 key、op、value、unit、hard、source、conditions。
+格式示例：{"key":"os","op":"eq","value":"Linux","unit":"","hard":true,"source":"Linux","conditions":""}。
+unit、source、conditions 必须是字符串，不允许 null 或数组。无单位或无附加条件时用空字符串 ""。
+数量（如 gpio_count）的 unit 用 ""；ram_mb 的 unit 用 "MiB"。source 必须是用户原文中的连续片段。
+value 为字符串、数字或布尔值，gte/lte 必须使用 JSON 数字，不能使用数字字符串。
 key 使用 snake_case；op 为 eq/gte/lte/contains；hard 为布尔值。
 常用字段: os(字符串), ram_mb(MiB), gpio_count(数量), interfaces(contains), wireless(contains)。
 成本、功耗和实时性缺少口径时只提问，不生成已确定的约束。无法确认的单位只提问。

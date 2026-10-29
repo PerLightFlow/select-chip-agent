@@ -1,6 +1,9 @@
 import hashlib
 import re
 import uuid
+import csv
+import io
+import zipfile
 import jieba
 from bs4 import BeautifulSoup
 from django.conf import settings
@@ -41,6 +44,42 @@ def extract(version):
         raise ValueError('文件超过 10 MiB，请拆分后上传')
     suffix = version.file.name.rsplit('.', 1)[-1].lower()
     with version.file.open('rb') as f:
+        if suffix in {'docx', 'xlsx'}:
+            with zipfile.ZipFile(f) as archive:
+                if sum(x.file_size for x in archive.infolist()) > 50 * 1024 * 1024:
+                    raise ValueError('文档解压后超过 50 MiB，请拆分')
+            f.seek(0)
+            if suffix == 'docx':
+                from docx import Document as WordDocument
+                doc = WordDocument(f)
+                blocks = [(f'段落 {i+1}', p.text) for i, p in enumerate(doc.paragraphs) if p.text.strip()]
+                for i, table in enumerate(doc.tables):
+                    blocks.append((f'表格 {i+1}', '\n'.join(' | '.join(c.text for c in r.cells) for r in table.rows)))
+                return blocks
+            from openpyxl import load_workbook
+            book = load_workbook(f, read_only=True, data_only=True)
+            blocks = []
+            count = 0
+            try:
+                for sheet in book:
+                    for i, row in enumerate(sheet.iter_rows(values_only=True)):
+                        count += len(row)
+                        if count > 100000:
+                            raise ValueError('表格超过 100000 单元格，请拆分')
+                        text = ' | '.join('' if v is None else str(v) for v in row)
+                        if text.strip(' |'):
+                            blocks.append((f'{sheet.title} · 行 {i+1}', text))
+                return blocks
+            finally:
+                book.close()
+        if suffix == 'csv':
+            rows = csv.reader(io.StringIO(f.read().decode('utf-8-sig')))
+            blocks = []
+            for i, row in enumerate(rows):
+                if i >= 50000:
+                    raise ValueError('CSV 超过 50000 行，请拆分')
+                blocks.append((f'行 {i+1}', ' | '.join(row)))
+            return blocks
         if suffix == 'pdf':
             reader = PdfReader(f)
             if reader.is_encrypted or len(reader.pages) > 500:
@@ -50,7 +89,7 @@ def extract(version):
                 raise ValueError('存在无法可靠提取的页面，请先 OCR 或人工整理')
             return pages
         if suffix not in {'txt', 'md', 'html', 'htm'}:
-            raise ValueError('只支持 PDF、TXT、Markdown 或 HTML')
+            raise ValueError('支持文字 PDF、DOCX、XLSX、CSV、TXT、Markdown 或 HTML')
         raw = f.read()
     if suffix in {'html', 'htm'}:
         soup = BeautifulSoup(raw, 'html.parser')

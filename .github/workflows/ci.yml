@@ -35,7 +35,7 @@ jobs:
         working-directory: backend
       - run: python manage.py makemigrations --check --dry-run
         working-directory: backend
-      - run: python manage.py test core.tests -v 2
+      - run: python manage.py test core.tests assistant.tests -v 2
         working-directory: backend
       - name: Probe public official discovery (diagnostic)
         run: python probe_official.py
@@ -57,7 +57,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
@@ -84,14 +84,15 @@ jobs:
       - run: docker compose up --build -d --wait --wait-timeout 180
       - name: Provision test user and fixtures
         run: |
-          docker compose exec -T -e DJANGO_SUPERUSER_USERNAME=ci-admin -e DJANGO_SUPERUSER_EMAIL=ci@example.invalid -e DJANGO_SUPERUSER_PASSWORD=ci-only-strong-password backend python manage.py createsuperuser --noinput
-          docker compose exec -T backend python manage.py seed_demo
-      - run: npm install --no-audit --no-fund
+          docker compose exec -T -e DJANGO_SUPERUSER_USERNAME=ui-test -e DJANGO_SUPERUSER_EMAIL=ci@example.invalid -e DJANGO_SUPERUSER_PASSWORD=local-ui-test-only backend python manage.py createsuperuser --noinput
+      - run: npm ci --no-audit --no-fund
         working-directory: frontend
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: npm run test:e2e
         working-directory: frontend
+        env:
+          APP_URL: http://127.0.0.1:8080
       - name: Container logs on failure
         if: failure()
         run: docker compose logs --tail 100

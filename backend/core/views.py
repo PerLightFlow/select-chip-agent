@@ -1,17 +1,19 @@
 import json
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse, FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_protect
 from django.views.decorators.http import require_http_methods
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import F
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import serializers, viewsets
 from rest_framework.throttling import AnonRateThrottle
-from .models import Project, SelectionRun, Chip, Document, DocumentVersion, SearchRun
+from .models import Project, SelectionRun, Chip, Document, DocumentVersion, SearchRun, AuditEvent
 from .domain import validate_requirements
 from .knowledge import search_documents, visible_chunks, serialize_chunk
 from .providers import embedding_profile
@@ -21,6 +23,10 @@ from .research import enqueue, model_names
 
 class LoginThrottle(AnonRateThrottle):
     scope = 'login'
+
+
+class RegistrationThrottle(AnonRateThrottle):
+    scope = 'register'
 
 
 @ensure_csrf_cookie
@@ -52,6 +58,46 @@ def sign_in(request):
     return JsonResponse({'username':user.get_username(), 'is_staff':user.is_staff})
 
 
+@csrf_protect
+@require_http_methods(['POST'])
+def register(request):
+    if request.user.is_authenticated:
+        return JsonResponse({'error': '请先退出当前账号再注册'}, status=409)
+    if not RegistrationThrottle().allow_request(request, None):
+        return JsonResponse({'error': '注册尝试过于频繁，请稍后重试'}, status=429)
+    try:
+        data = json.loads(request.body)
+        if not isinstance(data, dict):
+            raise ValueError()
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'error': '注册信息格式错误'}, status=400)
+    username, password, confirmation = (data.get(k, '') for k in ['username', 'password', 'confirm_password'])
+    if (not all(isinstance(x, str) for x in [username, password, confirmation])
+            or len(username) > 150 or not 1 <= len(password) <= 1000 or len(confirmation) > 1000):
+        return JsonResponse({'error': '注册信息格式错误'}, status=400)
+    if password != confirmation:
+        return JsonResponse({'error': '两次输入的密码不一致'}, status=400)
+    User = get_user_model()
+    username = User.normalize_username(username.strip())
+    user = User(username=username)
+    try:
+        User._meta.get_field('username').clean(username, user)
+        validate_password(password, user)
+    except ValidationError as exc:
+        return JsonResponse({'error': '；'.join(exc.messages)}, status=400)
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(username=username, password=password,
+                                            is_active=True, is_staff=False, is_superuser=False)
+            AuditEvent.objects.create(actor=user, action='register_account', target=str(user.pk))
+    except IntegrityError:
+        if User.objects.filter(username=username).exists():
+            return JsonResponse({'error': '用户名已存在，请更换用户名或直接登录'}, status=400)
+        raise
+    login(request, user)
+    return JsonResponse({'username': user.get_username(), 'is_staff': False}, status=201)
+
+
 @api_view(['POST'])
 def sign_out(request):
     logout(request)
@@ -61,7 +107,7 @@ def sign_out(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(request):
-    return Response({'status':'ok','version':'0.1.0'})
+    return Response({'status':'ok','version':'0.2.6'})
 
 
 class ProjectSerializer(serializers.ModelSerializer):
