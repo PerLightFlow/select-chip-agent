@@ -56,7 +56,7 @@
       </div>
       <div v-if="read.content" class="doc-read__content">
         <div class="doc-summary">{{ $t('agentStream.weknoraDocs.content') }}</div>
-        <DocMarkdown :source="read.content" />
+        <DocMarkdown :source="read.content" :resolve-link="resolveDocumentationUrl" />
         <p v-if="read.truncated" class="doc-note">{{ $t('agentStream.weknoraDocs.truncated') }}</p>
       </div>
       <p v-else-if="!read.outline.length && !read.error" class="doc-empty">{{ $t('agentStream.weknoraDocs.empty') }}</p>
@@ -72,8 +72,8 @@ import {
   docPages,
   docReadView,
   parseCatalogPayload,
-  safeDocUrl,
 } from '@/utils/catalogToolDisplay'
+import { resolveDocumentationUrl } from '@/utils/docsUrl'
 import DocMarkdown from './DocMarkdown.vue'
 
 const props = withDefaults(defineProps<{
@@ -87,8 +87,13 @@ const { t } = useI18n()
 const payload = computed(() => parseCatalogPayload(props.output, props.data))
 const pages = computed(() => docPages(payload.value))
 const hits = computed(() => docHits(payload.value))
-const read = computed(() => docReadView(payload.value))
-const readHref = computed(() => safeDocUrl(read.value.url))
+const productLabel = (value: string) => value.replace(/WeKnora Cloud/g, 'Model service').replace(/WeKnora/g, 'SOLEX')
+const read = computed(() => {
+  const value = docReadView(payload.value)
+  return { ...value, title: productLabel(value.title), section: productLabel(value.section),
+    outline: value.outline.map((item) => ({ ...item, heading: productLabel(item.heading) })) }
+})
+const readHref = computed(() => resolveDocumentationUrl(read.value.url))
 const listingPages = computed(() => Array.isArray(payload.value.pages))
 const rows = computed(() => {
   const source = listingPages.value
@@ -96,7 +101,9 @@ const rows = computed(() => {
     : hits.value
   return source.map((row) => ({
     ...row,
-    href: safeDocUrl(row.url),
+    title: productLabel(row.title),
+    snippet: productLabel(row.snippet),
+    href: resolveDocumentationUrl(row.url),
     locator: row.anchor ? `${row.path}#${row.anchor}` : row.path,
   }))
 })

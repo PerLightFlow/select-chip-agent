@@ -145,3 +145,19 @@ test('product docs render pages, sections, and markdown instead of raw JSON', as
   assert.match(read, /The page continues/)
   assert.doesNotMatch(read, /fallback-output|"content"/)
 })
+
+test('product documentation links stay internal through nested Markdown without changing research links', async () => {
+  const html = await render({
+    displayType: 'read_weknora_doc', success: true,
+    output: JSON.stringify({
+      title: 'WeKnora model documentation',
+      url: 'https://weknora.weixin.qq.com/docs/03-features/06-models',
+      content: '> [API](https://github.com/Tencent/WeKnora/blob/main/website-docs/04-api/01-api-overview.md)\n\n- [Chip](https://www.espressif.com/en/products/socs)\n- [Invalid](javascript:alert%281%29)',
+    }),
+  })
+  assert.match(html, /SOLEX model documentation/)
+  assert.match(html, /href="\/platform\/settings\?section=help&amp;topic=models"/)
+  assert.match(html, /href="\/platform\/settings\?section=help&amp;topic=apiOverview"/)
+  assert.match(html, /href="https:\/\/www\.espressif\.com\/en\/products\/socs"/)
+  assert.doesNotMatch(html, /href="(?:javascript:|https:\/\/weknora\.weixin\.qq\.com|https:\/\/github\.com\/Tencent\/WeKnora)/)
+})

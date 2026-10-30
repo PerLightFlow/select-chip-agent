@@ -187,7 +187,7 @@ function hasPageContext(context: Partial<AssistantPageContext>): boolean {
 }
 
 /**
- * Pinia store behind the global WeKnora assistant panel (rendered once in
+ * Pinia store behind the global SOLEX assistant panel (rendered once in
  * platform/index.vue). Pages publish what is open through
  * useAssistantPageContext; anything can open the panel with open().
  */
@@ -232,6 +232,13 @@ export const useAssistantStore = defineStore('assistant', () => {
   // Workspace name and ceiling. Until it loads the ceiling is the default,
   // the same one the server applies to a workspace that never set it.
   const workspaceConfig = ref<AssistantConfig | null>(null)
+  // Only the old product default is an alias. A workspace's custom name,
+  // including names that mention the upstream product, remains user content.
+  const workspaceDisplayConfig = (config: AssistantConfig | null): AssistantConfig | null => {
+    if (!config) return null
+    const isProductDefault = config.display_name?.trim().toLowerCase() === 'weknora'
+    return { ...config, display_name: isProductDefault ? 'SOLEX' : config.display_name }
+  }
   const accessCeiling = computed<AssistantAccessLevel>(() => {
     const level = workspaceConfig.value?.max_access_level
     return isAssistantAccessLevel(level) ? level : DEFAULT_ASSISTANT_ACCESS_LEVEL
@@ -273,13 +280,13 @@ export const useAssistantStore = defineStore('assistant', () => {
     try {
       const res = await getTenantAssistantConfig()
       // A workspace switch can complete while the request is in flight.
-      if (workspaceOwner() === owner) workspaceConfig.value = res?.data || null
+      if (workspaceOwner() === owner) workspaceConfig.value = workspaceDisplayConfig(res?.data || null)
     } catch {
       // The defaults stand; the server applies the same ones.
     }
   }
   const setWorkspaceConfig = (config: AssistantConfig) => {
-    workspaceConfig.value = { ...config }
+    workspaceConfig.value = workspaceDisplayConfig(config)
   }
   const setAccessLevel = (level: AssistantAccessLevel) => {
     accessLevel.value = level

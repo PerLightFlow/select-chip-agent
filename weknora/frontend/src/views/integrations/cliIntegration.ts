@@ -1,5 +1,5 @@
 /** The CLI appends /api/v1 itself; retain any reverse-proxy path prefix. */
-export function buildCLIConnectCommand(apiBaseUrl: string, origin: string): string {
+export function buildCLIConnectCommand(apiBaseUrl: string, origin: string, configuredBinary = false): string {
   let host = 'https://your-server.com'
   try {
     const url = new URL(apiBaseUrl, origin && origin !== 'null' ? origin : undefined)
@@ -12,5 +12,7 @@ export function buildCLIConnectCommand(apiBaseUrl: string, origin: string): stri
   }
   // POSIX shell quoting prevents URL characters from becoming shell syntax.
   const quotedHost = `'${host.replace(/'/g, `'"'"'`)}'`
-  return `weknora profile add weknora --host ${quotedHost} --use &&\nweknora auth login`
+  const command = configuredBinary ? '"$CLI_BIN"' : 'weknora'
+  const profile = configuredBinary ? 'solex' : 'weknora'
+  return `${command} profile add ${profile} --host ${quotedHost} --use &&\n${command} auth login`
 }

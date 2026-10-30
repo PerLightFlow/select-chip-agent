@@ -1,0 +1,5 @@
+*
+!Dockerfile
+!50x.html
+!dist/
+!dist/**

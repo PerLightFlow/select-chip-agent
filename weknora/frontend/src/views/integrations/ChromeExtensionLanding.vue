@@ -13,9 +13,9 @@
     <template #actions>
       <IntegrationExternalCta
         variant="chrome"
-        :label="$t('integrations.chrome.installCta')"
-        :hint="$t('integrations.chrome.installCtaHint')"
-        @click="openChromeStore"
+        :label="chinese ? '接入说明' : 'Connection guide'"
+        :hint="chinese ? '连接企业批准的浏览器客户端' : 'Connect an approved browser client'"
+        @click="openHelp"
       >
         <template #icon>
           <t-icon name="extension" size="18px" />
@@ -51,8 +51,8 @@
             <li v-for="(step, index) in stepKeys" :key="step" class="landing-step">
               <span class="landing-step-num">{{ index + 1 }}</span>
               <div class="landing-step-body">
-                <div class="landing-step-title">{{ $t(`integrations.chrome.steps.${step}.title`) }}</div>
-                <p class="landing-step-desc">{{ $t(`integrations.chrome.steps.${step}.desc`) }}</p>
+                <div class="landing-step-title">{{ step === 'install' ? (chinese ? '获取客户端' : 'Get the client') : $t(`integrations.chrome.steps.${step}.title`) }}</div>
+                <p class="landing-step-desc">{{ step === 'install' ? (chinese ? '向企业管理员获取已批准的浏览器扩展，并按随附说明安装。' : 'Ask your administrator for an approved browser extension and follow its installation guide.') : $t(`integrations.chrome.steps.${step}.desc`) }}</p>
                 <t-button
                   v-if="step === 'api'"
                   size="small"
@@ -82,22 +82,23 @@
       </div>
     </template>
 
-    <template #footer>
-      <span class="landing-meta">{{ $t('integrations.chrome.storeMeta') }}</span>
-    </template>
   </IntegrationLandingLayout>
 </template>
 
 <script setup lang="ts">
 import { copyWithToast } from '@/utils/clipboard'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { CHROME_EXTENSION_URL } from '@/config/integrations'
+import { docsUrl } from '@/utils/docsUrl'
 import { useApiBaseUrlDisplay } from '@/composables/useApiBaseUrlDisplay'
 import { useUIStore } from '@/stores/ui'
 import IntegrationLandingLayout from './IntegrationLandingLayout.vue'
 import IntegrationExternalCta from './IntegrationExternalCta.vue'
 
 const router = useRouter()
+const { locale } = useI18n()
+const chinese = computed(() => locale.value.startsWith('zh'))
 const uiStore = useUIStore()
 const { apiBaseUrlDisplay } = useApiBaseUrlDisplay()
 
@@ -112,9 +113,7 @@ const capabilityIcons: Record<(typeof capabilityKeys)[number], string> = {
   shortcuts: 'jump',
 }
 
-const openChromeStore = () => {
-  window.open(CHROME_EXTENSION_URL, '_blank', 'noopener,noreferrer')
-}
+const openHelp = () => router.push(docsUrl('apiOverview'))
 
 const openApiSettings = () => {
   router.push({ path: '/platform/settings', query: { section: 'integration-api' } })

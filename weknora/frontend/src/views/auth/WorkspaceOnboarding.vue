@@ -1,8 +1,9 @@
 <template>
   <main class="workspace-onboarding">
     <section class="workspace-card">
+      <img src="@/assets/solex/solex-wordmark.svg" alt="SOLEX" class="workspace-brand" />
       <div class="workspace-mark" aria-hidden="true">
-        <t-icon name="system-sum" size="30px" />
+        <t-icon name="usergroup" size="28px" />
       </div>
       <h1 v-if="authStore.canCreateTenant">{{ $t('auth.workspaceOnboarding.title') }}</h1>
       <h1 v-else>{{ $t('auth.workspaceOnboarding.inviteOnlyTitle') }}</h1>
@@ -125,121 +126,68 @@ async function handleLogout() {
 <style scoped lang="less">
 .workspace-onboarding {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 32px 20px;
-  background:
-    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--td-brand-color) 12%, transparent), transparent 38%),
-    var(--td-bg-color-page);
+  background: #f5f8f8;
+  box-sizing: border-box;
 }
 
 .workspace-card {
-  width: min(520px, 100%);
+  width: min(540px, 100%);
+  box-sizing: border-box;
   padding: 44px;
-  border: 1px solid var(--td-component-stroke);
-  border-radius: 20px;
-  background: var(--td-bg-color-container);
-  box-shadow: var(--td-shadow-2);
+  border: 1px solid #dce7e7;
+  border-radius: var(--solex-radius-card);
+  background: #fff;
+  box-shadow: 0 22px 60px -24px #234b5620;
   text-align: center;
 }
 
+.workspace-brand { display: block; width: 118px; height: 30px; margin: 0 auto 34px; }
 .workspace-mark {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   margin: 0 auto 22px;
   display: grid;
   place-items: center;
-  border-radius: 18px;
-  color: var(--td-brand-color);
-  background: var(--td-brand-color-light);
+  border-radius: var(--solex-radius-panel);
+  border: 1px solid #deeeee;
+  color: #087f8c;
+  background: #edf7f7;
 }
 
-h1 {
-  margin: 0;
-  color: var(--td-text-color-primary);
-  font-size: 26px;
-  line-height: 1.3;
-}
+h1 { margin: 0; color: #172d35; font-size: var(--solex-text-heading); font-weight: 600; line-height: 1.4; letter-spacing: -.025em; }
+.workspace-description, .workspace-help { color: #7a8d93; line-height: 1.8; }
+.workspace-description { margin: 14px 0 28px; font-size: var(--app-text-md); }
+.workspace-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.workspace-actions--single { grid-template-columns: minmax(0, 1fr); }
+.workspace-actions :deep(.t-button) { border-radius: var(--app-radius-md); min-height: 46px; font-size: var(--app-text-md); }
+.workspace-actions :deep(.t-button--theme-primary) { background: #087f8c; border-color: #087f8c; }
+.workspace-actions :deep(.t-button--theme-primary:hover) { background: #076c78; border-color: #076c78; }
 
-.workspace-description,
-.workspace-help {
-  color: var(--td-text-color-secondary);
-  line-height: 1.7;
-}
-
-.workspace-description {
-  margin: 14px 0 28px;
-}
-
-.workspace-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.workspace-actions--single {
-  grid-template-columns: minmax(220px, 1fr);
-}
-
-.policy-loading,
-.invite-only-notice,
-.policy-error {
+.policy-loading, .invite-only-notice, .policy-error {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   min-height: 52px;
   margin-bottom: 18px;
-  color: var(--td-text-color-secondary);
-  font-size: var(--app-text-base);
+  color: #6d8086;
+  font-size: var(--app-text-sm);
 }
-
-.policy-error {
-  flex-wrap: wrap;
-  padding: 12px 16px;
-  border-radius: var(--app-radius-lg);
-  color: var(--td-error-color);
-  background: var(--td-error-color-light);
-}
-
-.invite-only-notice {
-  padding: 12px 16px;
-  border: 1px solid var(--td-component-stroke);
-  border-radius: var(--app-radius-lg);
-  color: var(--td-text-color-primary);
-  background: var(--td-bg-color-secondarycontainer);
-  line-height: 1.5;
-}
-
-.invite-only-notice :deep(.t-icon) {
-  flex: 0 0 auto;
-  color: var(--td-text-color-secondary);
-}
-
-.workspace-help {
-  margin: 24px 0 8px;
-  font-size: var(--app-text-md);
-}
-
-.logout-link {
-  border: 0;
-  padding: 6px 10px;
-  color: var(--td-text-color-secondary);
-  background: transparent;
-  cursor: pointer;
-}
-
-.logout-link:hover {
-  color: var(--td-brand-color);
-}
+.policy-error { flex-wrap: wrap; padding: 12px 16px; border: 1px solid #f1d9d9; border-radius: var(--app-radius-lg); color: #b04444; background: #fff7f7; }
+.invite-only-notice { padding: 14px 16px; border: 1px solid #dceced; border-radius: var(--app-radius-lg); color: #526d74; background: #f2f9f9; line-height: 1.7; text-align: left; }
+.invite-only-notice :deep(.t-icon) { flex: 0 0 auto; color: #087f8c; }
+.workspace-help { margin: 24px 0 8px; font-size: var(--app-text-sm); }
+.logout-link { border: 0; border-radius: var(--app-radius-xs); padding: 7px 10px; font-size: var(--app-text-sm); color: #718b92; background: transparent; cursor: pointer; }
+.logout-link:hover { color: #087f8c; background: #f2f8f8; }
+.logout-link:focus-visible { outline: 2px solid #087f8c; outline-offset: 2px; }
 
 @media (max-width: 560px) {
-  .workspace-card {
-    padding: 32px 22px;
-  }
-
-  .workspace-actions {
-    grid-template-columns: 1fr;
-  }
+  .workspace-card { padding: 32px 24px; }
+  .workspace-actions { grid-template-columns: 1fr; }
+  h1 { font-size: var(--solex-text-title); }
 }
 </style>

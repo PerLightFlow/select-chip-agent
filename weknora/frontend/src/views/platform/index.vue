@@ -1,7 +1,10 @@
 <template>
-    <div class="main" ref="dropzone" :style="{ '--sidebar-width': `${uiStore.sidebarDisplayWidth}px` }">
+    <div class="main" :class="{ 'main--mobile': isMobileSidebar }" ref="dropzone"
+        :style="{ '--sidebar-width': `${isMobileSidebar ? 48 : uiStore.sidebarDisplayWidth}px` }">
+        <button v-if="isMobileSidebar && !uiStore.sidebarCollapsed" type="button" class="mobile-sidebar-backdrop"
+            :aria-label="t('menu.collapseSidebar')" @click="closeMobileSidebar" />
         <Menu></Menu>
-        <div v-if="isRouterAlive" class="platform-route-outlet">
+        <div v-if="isRouterAlive" class="platform-route-outlet" :inert="isMobileSidebar && !uiStore.sidebarCollapsed">
             <RouterView />
         </div>
         <!-- WeKnora 助手：停靠时作为布局右栏挤压页面，悬浮时浮在页面上；都不加遮罩，
@@ -48,6 +51,44 @@ const commandPaletteStore = useCommandPaletteStore();
 const uiStore = useUIStore();
 let ismask = ref(false)
 const { t } = useI18n();
+
+// Mobile navigation is an overlay; its open state must not overwrite the
+// user's persisted desktop sidebar preference.
+const sidebarMedia = window.matchMedia('(max-width: 767px)');
+const isMobileSidebar = ref(sidebarMedia.matches);
+let desktopSidebarCollapsed = uiStore.sidebarCollapsed;
+if (isMobileSidebar.value) uiStore.sidebarCollapsed = true;
+const closeMobileSidebar = () => {
+    if (!isMobileSidebar.value) return;
+    uiStore.sidebarCollapsed = true;
+    nextTick(() => document.querySelector<HTMLElement>('.sidebar-toggle-item')?.focus());
+};
+const updateSidebarViewport = () => {
+    if (sidebarMedia.matches === isMobileSidebar.value) return;
+    if (sidebarMedia.matches) {
+        desktopSidebarCollapsed = uiStore.sidebarCollapsed;
+        uiStore.sidebarCollapsed = true;
+    } else {
+        uiStore.sidebarCollapsed = desktopSidebarCollapsed;
+    }
+    isMobileSidebar.value = sidebarMedia.matches;
+};
+provide('platform:toggle-sidebar', () => {
+    if (isMobileSidebar.value) {
+        uiStore.sidebarCollapsed = !uiStore.sidebarCollapsed;
+        nextTick(() => document.querySelector<HTMLElement>(
+            uiStore.sidebarCollapsed ? '.sidebar-toggle-item' : '.sidebar-toggle',
+        )?.focus());
+    } else {
+        uiStore.toggleSidebar();
+    }
+});
+const handleMobileSidebarEscape = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && isMobileSidebar.value && !uiStore.sidebarCollapsed) closeMobileSidebar();
+};
+watch(() => route.path, () => {
+    if (isMobileSidebar.value) uiStore.sidebarCollapsed = true;
+});
 
 const isRouterAlive = ref(true)
 const reloadApp = () => {
@@ -200,6 +241,8 @@ const handleGlobalDrop = async (event: DragEvent) => {
 
 // 组件挂载时添加全局事件监听器
 onMounted(() => {
+    sidebarMedia.addEventListener('change', updateSidebarViewport);
+    window.addEventListener('keydown', handleMobileSidebarEscape);
     document.addEventListener('dragenter', handleGlobalDragEnter, true);
     document.addEventListener('dragover', handleGlobalDragOver, true);
     document.addEventListener('dragleave', handleGlobalDragLeave, true);
@@ -235,6 +278,9 @@ function maybeOpenCmdkFromRoute() {
 
 // 组件卸载时移除全局事件监听器
 onUnmounted(() => {
+    sidebarMedia.removeEventListener('change', updateSidebarViewport);
+    window.removeEventListener('keydown', handleMobileSidebarEscape);
+    if (isMobileSidebar.value) uiStore.sidebarCollapsed = desktopSidebarCollapsed;
     document.removeEventListener('dragenter', handleGlobalDragEnter, true);
     document.removeEventListener('dragover', handleGlobalDragOver, true);
     document.removeEventListener('dragleave', handleGlobalDragLeave, true);
@@ -256,10 +302,42 @@ onUnmounted(() => {
     align-items: stretch;
     width: 100%;
     height: 100%;
-    min-width: 600px;
+    min-width: 0;
     min-height: 0;
     /* 统一整页背景，让左侧菜单与右侧内容区视觉连贯 */
     background: var(--td-bg-color-container);
+}
+
+.main--mobile {
+    position: relative;
+    padding-left: 48px;
+    box-sizing: border-box;
+
+    > .aside_box {
+        position: absolute;
+        inset: 0 auto 0 0;
+        z-index: 220;
+        height: 100%;
+    }
+
+    > .aside_box:not(.aside_box--collapsed) {
+        width: min(300px, calc(100vw - 48px));
+        box-shadow: var(--td-shadow-3);
+    }
+
+    > .aside_box .panel-resize-handle {
+        display: none;
+    }
+}
+
+.mobile-sidebar-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 210;
+    border: 0;
+    padding: 0;
+    background: rgb(23 45 53 / 28%);
+    cursor: pointer;
 }
 
 /* 右侧路由区：占满剩余宽度与整列高度，并把 min-height:0 传给子页面以便内部 flex 滚动 */

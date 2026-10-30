@@ -1,8 +1,30 @@
 <template>
     <div class="dialogue-wrap">
         <div class="dialogue-answers">
-            <div class="dialogue-title" style="--wails-draggable: drag">
-                <span style="--wails-draggable: drag">{{ $t('createChat.title') }}</span>
+            <header class="workspace-hero" style="--wails-draggable: drag">
+                <div class="workspace-hero-eyebrow">
+                    <img src="@/assets/solex/solex-symbol.svg" alt="" aria-hidden="true" />
+                    <span>{{ $t('solex.heroEyebrow') }}</span>
+                </div>
+                <h1 class="dialogue-title">{{ $t('solex.heroTitle') }}</h1>
+                <p class="workspace-hero-description">{{ $t('solex.heroDescription') }}</p>
+            </header>
+            <div class="create-chat-composer">
+                <div v-if="hostSandboxEnabled" class="project-dir-bar">
+                    <button type="button" class="project-dir-bar__btn"
+                        :class="{ 'is-bound': !!selectedProjectDir, 'is-picking': pickingProjectDir }"
+                        :disabled="pickingProjectDir" :title="selectedProjectDir || $t('createChat.openProject')"
+                        @click="openProjectDir">
+                        <t-icon :name="pickingProjectDir ? 'loading' : 'folder'" />
+                        <span class="project-dir-bar__name">{{
+                            selectedProjectDir ? projectDirBasename(selectedProjectDir) : $t('createChat.openProject')
+                        }}</span>
+                    </button>
+                    <button v-if="selectedProjectDir" type="button" class="project-dir-bar__clear"
+                        :aria-label="$t('createChat.clearProject')" @click="clearProjectDir">×</button>
+                </div>
+                <InputField ref="inputFieldRef" @send-msg="sendMsg"></InputField>
+                <p class="composer-caption">{{ $t('solex.composerHint') }}</p>
             </div>
             <!-- 推荐问题 -->
             <div ref="sqContainerRef" class="suggested-questions-container">
@@ -32,32 +54,17 @@
                             </p>
                         </div>
                         <div class="suggested-questions-grid">
-                            <div v-for="(item, index) in suggestedQuestions" :key="item.question"
+                            <button type="button" v-for="(item, index) in suggestedQuestions" :key="item.question"
                                 class="suggested-question-card" :class="{ 'sq-card-visible': sqCardsRevealed }"
                                 :style="{ transitionDelay: sqCardsRevealed ? `${index * 50}ms` : '0ms' }"
                                 @click="handleSuggestedQuestionClick(item)">
                                 <span class="suggested-question-text">{{ item.question }}</span>
                                 <span v-if="item.source === 'faq'" class="suggested-question-badge faq">FAQ</span>
-                            </div>
+                                <t-icon name="arrow-top-right" size="14px" class="suggested-question-arrow" aria-hidden="true" />
+                            </button>
                         </div>
                     </div>
                 </transition>
-            </div>
-            <div class="create-chat-composer">
-                <div v-if="hostSandboxEnabled" class="project-dir-bar">
-                    <button type="button" class="project-dir-bar__btn"
-                        :class="{ 'is-bound': !!selectedProjectDir, 'is-picking': pickingProjectDir }"
-                        :disabled="pickingProjectDir" :title="selectedProjectDir || $t('createChat.openProject')"
-                        @click="openProjectDir">
-                        <t-icon :name="pickingProjectDir ? 'loading' : 'folder'" />
-                        <span class="project-dir-bar__name">{{
-                            selectedProjectDir ? projectDirBasename(selectedProjectDir) : $t('createChat.openProject')
-                        }}</span>
-                    </button>
-                    <button v-if="selectedProjectDir" type="button" class="project-dir-bar__clear"
-                        :aria-label="$t('createChat.clearProject')" @click="clearProjectDir">×</button>
-                </div>
-                <InputField ref="inputFieldRef" @send-msg="sendMsg"></InputField>
             </div>
         </div>
     </div>
@@ -321,7 +328,11 @@ async function openProjectDir() {
     display: flex;
     justify-content: center;
     align-items: center;
-    // position: relative;
+    min-height: 0;
+    padding: 48px 32px 56px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    background: radial-gradient(ellipse at 90% 0%, color-mix(in srgb, var(--td-brand-color) 5%, transparent), transparent 50%);
 }
 
 .dialogue-answers {
@@ -329,8 +340,9 @@ async function openProjectDir() {
     flex-flow: column;
     align-items: center;
     width: 100%;
-    max-width: 960px;
-    gap: 24px;
+    max-width: 880px;
+    margin: auto;
+    gap: 30px;
 
     :deep(.answers-input) {
         position: static;
@@ -399,31 +411,52 @@ async function openProjectDir() {
     cursor: pointer;
 }
 
-.dialogue-title {
+.workspace-hero {
+    align-self: stretch;
+    padding: 0 4px 8px;
+}
+
+.workspace-hero-eyebrow {
     display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 25px;
+    color: var(--td-brand-color);
+    font-size: var(--app-text-xs);
+    font-weight: 600;
+    letter-spacing: .1em;
+    line-height: 1.6;
+
+    img {
+        width: 28px;
+        height: 28px;
+    }
+}
+
+.dialogue-title {
+    margin: 0;
     color: var(--td-text-color-primary);
     font-family: var(--app-font-family);
-    font-size: 28px;
+    font-size: clamp(28px, 3.3vw, 40px);
     font-weight: 600;
-    align-items: center;
-    margin-bottom: 0;
+    line-height: 1.5;
+    letter-spacing: -.04em;
+}
 
-    .icon {
-        display: flex;
-        width: 32px;
-        height: 32px;
-        justify-content: center;
-        align-items: center;
-        border-radius: var(--app-radius-sm);
-        background: var(--td-bg-color-container);
-        box-shadow: var(--td-shadow-1);
-        margin-right: 12px;
+.workspace-hero-description {
+    max-width: 630px;
+    margin: 15px 0 0;
+    color: var(--td-text-color-secondary);
+    font-size: var(--app-text-base);
+    line-height: 1.9;
+}
 
-        .logo_img {
-            height: 24px;
-            width: 24px;
-        }
-    }
+.composer-caption {
+    margin: 4px 12px 0;
+    color: var(--td-text-color-placeholder);
+    font-size: var(--app-text-xs);
+    line-height: 1.8;
+    text-align: center;
 }
 
 @import '../../components/css/suggested-questions.less';
@@ -441,8 +474,9 @@ async function openProjectDir() {
 .suggested-questions-container {
     max-width: 960px;
     margin: 0;
-    padding: 0 16px;
-    transition: height 0.35s @suggested-ease;
+    padding: 0;
+    box-sizing: border-box;
+    transition: height var(--app-motion-base) @suggested-ease;
 }
 
 .suggested-questions-inner {
@@ -450,12 +484,12 @@ async function openProjectDir() {
 }
 
 .sq-slide-fade-enter-active {
-    transition: opacity 0.35s @suggested-ease, transform 0.35s @suggested-ease;
+    transition: opacity var(--app-motion-base) @suggested-ease, transform var(--app-motion-base) @suggested-ease;
 }
 
 .sq-slide-fade-leave-active {
     transition: opacity var(--app-motion-fast) cubic-bezier(0.4, 0, 1, 1),
-        transform 0.15s cubic-bezier(0.4, 0, 1, 1);
+        transform var(--app-motion-base) cubic-bezier(0.4, 0, 1, 1);
 }
 
 .sq-slide-fade-enter-from {
@@ -472,11 +506,11 @@ async function openProjectDir() {
     opacity: 0;
     transform: translateY(8px) scale(0.97);
     transition:
-        opacity 0.35s @suggested-ease,
-        transform 0.35s @suggested-ease,
-        background 0.2s @suggested-ease,
-        border-color 0.25s @suggested-ease,
-        box-shadow 0.25s @suggested-ease;
+        opacity var(--app-motion-base) @suggested-ease,
+        transform var(--app-motion-base) @suggested-ease,
+        background var(--app-motion-base) @suggested-ease,
+        border-color var(--app-motion-base) @suggested-ease,
+        box-shadow var(--app-motion-base) @suggested-ease;
 
     &.sq-card-skeleton {
         opacity: 1;
@@ -494,6 +528,92 @@ async function openProjectDir() {
 
     &.sq-card-visible:active {
         transform: scale(0.98);
+    }
+}
+
+.suggested-questions-title-row {
+    text-align: left;
+    margin-bottom: 14px;
+}
+
+.suggested-questions-title {
+    font-size: var(--app-text-sm);
+    font-weight: 500;
+}
+
+.suggested-questions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.suggested-question-card {
+    width: 100%;
+    min-height: 54px;
+    padding: 12px 16px;
+    border-radius: var(--app-radius-xl);
+    font-family: inherit;
+    text-align: left;
+    box-shadow: none;
+
+    &:focus-visible {
+        outline: 2px solid var(--td-brand-color);
+        outline-offset: 2px;
+    }
+
+    &.sq-card-skeleton,
+    &.sq-card-skeleton:nth-child(n) {
+        width: 100%;
+    }
+}
+
+.suggested-question-text {
+    flex: 1;
+    font-size: var(--app-text-md);
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.suggested-question-arrow {
+    flex: 0 0 auto;
+    color: var(--td-text-color-placeholder);
+}
+
+@media (max-width: 700px) {
+    .dialogue-wrap {
+        padding: 28px 18px;
+        align-items: flex-start;
+    }
+
+    .dialogue-answers {
+        gap: 24px;
+    }
+
+    .workspace-hero-eyebrow {
+        margin-bottom: 18px;
+    }
+
+    .dialogue-title {
+        font-size: var(--solex-text-heading-lg);
+    }
+
+    .workspace-hero-description {
+        font-size: var(--app-text-md);
+    }
+
+    .suggested-questions-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .suggested-question-card,
+    .suggested-questions-container,
+    .sq-slide-fade-enter-active,
+    .sq-slide-fade-leave-active {
+        transition: none;
     }
 }
 </style>

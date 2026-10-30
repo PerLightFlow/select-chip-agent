@@ -7,12 +7,12 @@
     <template #actions>
       <IntegrationExternalCta
         variant="claw"
-        :label="$t('integrations.claw.installCta')"
-        :hint="$t('integrations.claw.installCtaHint')"
-        @click="openClawHub"
+        :label="chinese ? '接入说明' : 'Connection guide'"
+        :hint="chinese ? '连接企业批准的技能包' : 'Connect an approved skill package'"
+        @click="openHelp"
       >
         <template #icon>
-          <span class="ext-cta-emoji" role="img" :aria-label="$t('common.clawhubSkill')">🦞</span>
+          <t-icon name="tools" size="18px" />
         </template>
       </IntegrationExternalCta>
     </template>
@@ -45,8 +45,8 @@
             <li v-for="(step, index) in stepKeys" :key="step" class="landing-step">
               <span class="landing-step-num">{{ index + 1 }}</span>
               <div class="landing-step-body">
-                <div class="landing-step-title">{{ $t(`integrations.claw.steps.${step}.title`) }}</div>
-                <p class="landing-step-desc">{{ $t(`integrations.claw.steps.${step}.desc`) }}</p>
+                <div class="landing-step-title">{{ step === 'install' ? (chinese ? '获取技能包' : 'Get the skill') : $t(`integrations.claw.steps.${step}.title`) }}</div>
+                <p class="landing-step-desc">{{ step === 'install' ? (chinese ? '向企业管理员获取已批准的技能包，并按客户端说明导入；连接前确认资料访问范围。' : 'Ask your administrator for an approved skill package and import it using your client. Check the data access scope before connecting.') : $t(`integrations.claw.steps.${step}.desc`) }}</p>
                 <t-button
                   v-if="step === 'api'"
                   size="small"
@@ -71,21 +71,6 @@
                     </t-button>
                   </div>
                 </div>
-                <div v-if="step === 'install'" class="landing-step-embed">
-                  <div class="code-toolbar">
-                    <pre class="code-toolbar__code">{{ installCommand }}</pre>
-                    <t-button
-                      class="code-toolbar__copy"
-                      size="small"
-                      variant="text"
-                      shape="square"
-                      :title="$t('integrations.claw.copy')"
-                      @click="copyInstallCommand"
-                    >
-                      <t-icon name="file-copy" size="16px" />
-                    </t-button>
-                  </div>
-                </div>
               </div>
             </li>
           </ol>
@@ -93,26 +78,23 @@
       </div>
     </template>
 
-    <template #footer>
-      <div class="landing-footer-bar" role="note">
-        <p class="landing-footer-bar__note">{{ $t('integrations.claw.ecosystemNote') }}</p>
-        <span class="landing-meta">{{ $t('integrations.claw.hubMeta') }}</span>
-      </div>
-    </template>
   </IntegrationLandingLayout>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { copyWithToast } from '@/utils/clipboard'
 import { useRouter } from 'vue-router'
-import { CLAWHUB_SKILL_URL } from '@/config/integrations'
+import { docsUrl } from '@/utils/docsUrl'
 import { useApiBaseUrlDisplay } from '@/composables/useApiBaseUrlDisplay'
 import { useUIStore } from '@/stores/ui'
 import IntegrationLandingLayout from './IntegrationLandingLayout.vue'
 import IntegrationExternalCta from './IntegrationExternalCta.vue'
 
 const router = useRouter()
+const { locale } = useI18n()
+const chinese = computed(() => locale.value.startsWith('zh'))
 const uiStore = useUIStore()
 const { apiBaseUrlDisplay } = useApiBaseUrlDisplay()
 
@@ -127,16 +109,12 @@ const capabilityIcons: Record<(typeof capabilityKeys)[number], string> = {
   browse: 'view-list',
 }
 
-const installCommand = 'openclaw skills install @lyingbug/weknora'
-
 const envExample = computed(() => {
   const base = apiBaseUrlDisplay.value || 'https://your-server.com/api/v1'
   return `export WEKNORA_BASE_URL="${base}"\nexport WEKNORA_API_KEY="sk-your-api-key"`
 })
 
-const openClawHub = () => {
-  window.open(CLAWHUB_SKILL_URL, '_blank', 'noopener,noreferrer')
-}
+const openHelp = () => router.push(docsUrl('apiOverview'))
 
 const openApiSettings = () => {
   router.push({ path: '/platform/settings', query: { section: 'integration-api' } })
@@ -144,5 +122,4 @@ const openApiSettings = () => {
 }
 
 const copyEnvExample = () => copyWithToast(envExample.value, 'integrations.claw.copyEnvSuccess')
-const copyInstallCommand = () => copyWithToast(installCommand, 'integrations.claw.copyCmdSuccess')
 </script>

@@ -1,5 +1,6 @@
 import { get, post, put, del } from "../../utils/request";
 import type { AssistantAccessLevel } from "../assistant";
+import { brandBuiltinAgent, builtinAgentDisplayText } from "../../utils/branding";
 
 // 智能体配置
 // 智能推理下的智能体类型预设 ID
@@ -204,12 +205,21 @@ export function listAgents(params?: {
   creator?: 'all' | 'mine' | 'others';
 }) {
   const qs = params?.creator && params.creator !== 'all' ? `?creator=${params.creator}` : '';
-  return get<{ data: CustomAgent[]; disabled_own_agent_ids?: string[] }>(`/api/v1/agents${qs}`);
+  return get<{ data: CustomAgent[]; disabled_own_agent_ids?: string[] }>(`/api/v1/agents${qs}`).then(response => {
+    // Keep the response object (and its non-enumerable HTTP status) intact.
+    if (Array.isArray(response.data)) response.data = response.data.map(brandBuiltinAgent);
+    return response;
+  });
+}
+
+function brandAgentResponse<T extends { data: CustomAgent }>(response: T): T {
+  if (response.data) response.data = brandBuiltinAgent(response.data);
+  return response;
 }
 
 // 获取智能体详情
 export function getAgentById(id: string) {
-  return get<{ data: CustomAgent }>(`/api/v1/agents/${id}`);
+  return get<{ data: CustomAgent }>(`/api/v1/agents/${id}`).then(brandAgentResponse);
 }
 
 // 创建智能体
@@ -220,12 +230,12 @@ export interface AllowedToolsWarnings {
 }
 
 export function createAgent(data: CreateAgentRequest) {
-  return post<{ data: CustomAgent; allowed_tools_warnings?: AllowedToolsWarnings }>('/api/v1/agents', data);
+  return post<{ data: CustomAgent; allowed_tools_warnings?: AllowedToolsWarnings }>('/api/v1/agents', data).then(brandAgentResponse);
 }
 
 // 更新智能体
 export function updateAgent(id: string, data: UpdateAgentRequest) {
-  return put<{ data: CustomAgent; allowed_tools_warnings?: AllowedToolsWarnings }>(`/api/v1/agents/${id}`, data);
+  return put<{ data: CustomAgent; allowed_tools_warnings?: AllowedToolsWarnings }>(`/api/v1/agents/${id}`, data).then(brandAgentResponse);
 }
 
 // 删除智能体
@@ -235,7 +245,7 @@ export function deleteAgent(id: string) {
 
 // 复制智能体
 export function copyAgent(id: string) {
-  return post<{ data: CustomAgent }>(`/api/v1/agents/${id}/copy`);
+  return post<{ data: CustomAgent }>(`/api/v1/agents/${id}/copy`).then(brandAgentResponse);
 }
 
 // 判断是否为内置智能体（通过 agent.is_builtin 字段或 ID 前缀判断）
@@ -387,7 +397,15 @@ export interface IMChannelOverview {
 }
 
 export function listAllIMChannels() {
-  return get<{ data: IMChannelOverview[] }>('/api/v1/im-channels');
+  return get<{ data: IMChannelOverview[] }>('/api/v1/im-channels').then(response => {
+    if (Array.isArray(response.data)) {
+      response.data = response.data.map(channel => ({
+        ...channel,
+        agent_name: builtinAgentDisplayText(channel.agent_id, channel.agent_name),
+      }));
+    }
+    return response;
+  });
 }
 
 export function createIMChannel(agentId: string, data: Partial<IMChannel>) {

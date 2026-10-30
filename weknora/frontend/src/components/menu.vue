@@ -2,10 +2,11 @@
     <div class="aside_box" :class="{ 'aside_box--collapsed': uiStore.sidebarCollapsed, 'aside_box--resizing': uiStore.sidebarResizing }">
         <!-- 展开时：Logo + 搜索/折叠按钮同行 -->
         <div class="logo_row" v-if="!uiStore.sidebarCollapsed">
-            <div class="logo_box" @click="router.push('/platform/knowledge-bases')" style="cursor: pointer;">
-                <img class="logo" src="@/assets/img/weknora.png" alt="">
+            <button type="button" class="logo_box" @click="router.push('/platform/knowledge-bases')" aria-label="SOLEX">
+                <img class="logo" src="@/assets/solex/solex-wordmark.svg" alt="SOLEX">
+                <span class="brand-caption">{{ t('solex.workspace') }}</span>
                 <sup v-if="isLiteEdition" class="lite-badge">Lite</sup>
-            </div>
+            </button>
             <div class="logo_actions">
                 <t-tooltip v-if="assistantStore.entry === 'sidebar'" :content="assistantName" placement="bottom">
                     <AssistantButton data-guide="assistant-entry" icon-only :icon-size="18" :label="assistantName"
@@ -18,12 +19,15 @@
                             <span class="cmdk-tip-keys">{{ cmdModKeyLabel }}K</span>
                         </span>
                     </template>
-                    <div class="header-icon-btn" @click="commandPaletteStore.openPalette('')"
+                    <div class="header-icon-btn" role="button" tabindex="0" @click="commandPaletteStore.openPalette('')"
+                        @keydown.enter.prevent="commandPaletteStore.openPalette('')" @keydown.space.prevent="commandPaletteStore.openPalette('')"
                         :aria-label="t('menu.search')">
                         <img class="header-icon-img" :src="getImgSrc('search.svg')" alt="">
                     </div>
                 </t-tooltip>
-                <div class="sidebar-toggle" @click="uiStore.toggleSidebar" :title="t('menu.collapseSidebar')">
+                <div class="sidebar-toggle" role="button" tabindex="0" @click="toggleSidebar"
+                    @keydown.enter.prevent="toggleSidebar" @keydown.space.prevent="toggleSidebar"
+                    :title="t('menu.collapseSidebar')" :aria-label="t('menu.collapseSidebar')">
                     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <rect x="1.5" y="1.5" width="17" height="17" rx="3" stroke="currentColor" stroke-width="1.5" />
                         <line x1="7.5" y1="1.5" x2="7.5" y2="18.5" stroke="currentColor" stroke-width="1.5" />
@@ -35,7 +39,9 @@
         </div>
         <!-- 折叠时：展开按钮 -->
         <t-tooltip v-else :content="t('menu.expandSidebar')" placement="right">
-            <div class="menu_item sidebar-toggle-item" @click="uiStore.toggleSidebar">
+            <div class="menu_item sidebar-toggle-item" role="button" tabindex="0" @click="toggleSidebar"
+                @keydown.enter.prevent="toggleSidebar" @keydown.space.prevent="toggleSidebar"
+                :aria-label="t('menu.expandSidebar')">
                 <div class="menu_item-box">
                     <div class="menu_icon">
                         <svg class="icon icon--toggle" viewBox="0 0 20 20" width="16" height="16" fill="none"
@@ -89,12 +95,17 @@
             <div class="menu_box" :class="{ 'menu_box--sticky': item.children && !uiStore.sidebarCollapsed }"
                 v-for="(item, index) in topMenuItems" :key="index">
                 <t-tooltip :content="item.title" placement="right" :disabled="!uiStore.sidebarCollapsed">
-                    <div @click="handleMenuClick(item.path)" @mouseenter="mouseenteMenu(item.path)"
+                    <div role="button" tabindex="0" @click="handleMenuClick(item.path)"
+                        @keydown.enter.prevent="handleMenuClick(item.path)" @keydown.space.prevent="handleMenuClick(item.path)"
+                        @mouseenter="mouseenteMenu(item.path)"
                         @mouseleave="mouseleaveMenu(item.path)" :data-guide="`nav-${item.path}`"
-                        :class="['menu_item', item.childrenPath && item.childrenPath == currentpath ? 'menu_item_c_active' : isMenuItemActive(item.path) ? 'menu_item_active' : '']">
+                        :class="['menu_item', { 'menu_item--new-chat': item.path === 'creatChat' }, item.childrenPath && item.childrenPath == currentpath ? 'menu_item_c_active' : isMenuItemActive(item.path) ? 'menu_item_active' : '']">
                         <div class="menu_item-box">
                             <div class="menu_icon" :class="`menu_icon--${item.icon}`">
-                                <img class="icon"
+                                <svg v-if="item.path === 'creatChat'" class="icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                    <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                                </svg>
+                                <img v-else class="icon"
                                     :src="getImgSrc(item.icon == 'zhishiku' ? knowledgeIcon : item.icon == 'agent' ? agentIcon : item.icon == 'artifact' ? artifactIcon : item.icon == 'automation' ? automationIcon : item.icon == 'toolbox' ? toolboxIcon : item.icon == 'organization' ? organizationIcon : item.icon == 'logout' ? logoutIcon : item.icon == 'setting' ? settingIcon : prefixIcon)"
                                     alt="">
                             </div>
@@ -124,6 +135,7 @@
 
             <!-- 历史会话：按来源筛选后统一按日期分组展示 -->
             <div class="submenu" v-if="!uiStore.sidebarCollapsed">
+                <div class="workspace-section-label">{{ t('solex.recentChats') }}</div>
                 <!-- Stable, always-mounted source filter: reserving its row here
                      (instead of embedding it in the first date group, which
                      appears/disappears while a bucket loads) prevents the
@@ -223,7 +235,7 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { onMounted, onUnmounted, watch, computed, ref, h, nextTick } from 'vue';
+import { onMounted, onUnmounted, watch, computed, ref, h, nextTick, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getSessionsList, batchDelSessions, deleteAllSessions, getSession } from "@/api/chat/index";
 import { useChatResourcesStore } from '@/stores/chatResources';
@@ -333,6 +345,7 @@ const toolboxPreview = computed(() => TOOLBOX_ITEMS.filter((item) => canAccessTo
 })));
 const orgStore = useOrganizationStore();
 const uiStore = useUIStore();
+const toggleSidebar = inject<() => void>('platform:toggle-sidebar', () => uiStore.toggleSidebar());
 const browserConnection = useBrowserConnectionStore();
 const browserStackStatus = computed(() => {
     if (!uiStore.sidebarBrowserStatus) return '';
@@ -1281,7 +1294,7 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
     min-width: 0;
     width: var(--sidebar-width, 260px);
     flex-shrink: 0;
-    padding: 8px 4px 6px;
+    padding: 12px 10px 10px;
     background: var(--td-bg-color-sidebar);
     box-sizing: border-box;
     /* Avoid 100vh because <html> carries a `zoom` multiplier for font-size
@@ -1294,7 +1307,7 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
     flex-direction: column;
     border-right: 1px solid var(--td-component-stroke);
     box-shadow: 1px 0 0 rgba(0, 0, 0, 0.02);
-    transition: width 0.25s ease, min-width 0.25s ease;
+    transition: width var(--app-motion-base) ease, min-width var(--app-motion-base) ease;
     position: relative;
 
     // macOS Wails 桌面：红绿灯位于 HiddenInset 标题栏区域，需让出顶部空间
@@ -1339,6 +1352,11 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
             border-radius: var(--app-radius-sm);
         }
 
+        .menu_item--new-chat {
+            min-height: 32px;
+            margin-bottom: 12px;
+        }
+
         .menu_bottom {
             align-items: center;
         }
@@ -1353,8 +1371,8 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         align-items: center;
         justify-content: space-between;
         // 保留侧栏顶部留白，让 Logo 和操作按钮与窗口顶边保持舒适间距
-        height: 39px;
-        margin: 0 0 4px;
+        min-height: 68px;
+        margin: 0 0 14px;
         flex-shrink: 0;
         padding: 0 2px 0 var(--sidebar-inset-x);
     }
@@ -1380,21 +1398,46 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
 
     .logo_box {
         display: flex;
-        align-items: center;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
         flex: 1;
         min-width: 0;
         overflow: hidden;
+        position: relative;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+
+        &:focus-visible {
+            outline: 2px solid var(--td-brand-color);
+            outline-offset: 5px;
+            border-radius: var(--app-radius-xs);
+        }
 
         .logo {
-            width: 108px;
-            height: auto;
+            width: 107px;
+            max-width: 100%;
+            height: 30px;
+            object-fit: contain;
+            object-position: left;
+        }
+
+        .brand-caption {
+            margin-top: 5px;
+            font-size: var(--app-text-2xs);
+            line-height: 1.4;
+            color: var(--td-text-color-secondary);
+            letter-spacing: .12em;
         }
 
         .lite-badge {
             margin-left: 2px;
             align-self: flex-start;
             margin-top: 2px;
-            font-size: 9px;
+            font-size: var(--solex-text-overline);
             font-weight: 600;
             color: var(--td-text-color-placeholder);
             user-select: none;
@@ -1450,6 +1493,18 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         flex-shrink: 0;
         display: flex;
         flex-direction: column;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--td-component-stroke);
+    }
+
+    .workspace-section-label {
+        padding: 20px var(--sidebar-inset-x) 10px;
+        font-size: var(--app-text-xs);
+        font-weight: 600;
+        line-height: 18px;
+        color: var(--td-text-color-placeholder);
+        letter-spacing: .06em;
     }
 
     .menu_box {
@@ -1472,8 +1527,8 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
     }
 
     .menu_item_active {
-        border-radius: var(--app-radius-xs);
-        background: var(--td-bg-color-secondarycontainer) !important;
+        border-radius: var(--app-radius-lg);
+        background: var(--td-brand-color-light) !important;
 
         .menu_icon,
         .menu_title {
@@ -1494,11 +1549,11 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        height: 34px;
-        padding: 6px 8px 6px var(--sidebar-inset-x);
+        height: 39px;
+        padding: 7px 8px 7px var(--sidebar-inset-x);
         box-sizing: border-box;
-        margin-bottom: 1px;
-        border-radius: var(--app-radius-xs);
+        margin-bottom: 3px;
+        border-radius: var(--app-radius-lg);
         transition: background-color var(--app-motion-base) ease;
 
         .menu_item-box {
@@ -1506,14 +1561,41 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
             align-items: center;
         }
 
+        &:focus-visible {
+            outline: 2px solid var(--td-brand-color);
+            outline-offset: 2px;
+        }
+
         &:hover {
-            border-radius: var(--app-radius-xs);
+            border-radius: var(--app-radius-lg);
             background: var(--td-bg-color-container-hover);
 
             .menu_icon,
             .menu_title {
                 color: var(--td-text-color-primary);
             }
+        }
+    }
+
+    .menu_item--new-chat {
+        margin-bottom: 14px;
+        min-height: 42px;
+        border: 1px solid var(--td-brand-color);
+        background: var(--td-brand-color) !important;
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--td-brand-color) 14%, transparent);
+
+        .menu_title,
+        .menu_icon {
+            color: #fff !important;
+        }
+
+        .menu_icon img {
+            filter: brightness(0) invert(1);
+        }
+
+        &:hover {
+            border-radius: var(--app-radius-lg);
+            background: var(--td-brand-color-hover) !important;
         }
     }
 
@@ -1917,7 +1999,7 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         translate var(--app-motion-slow) var(--stack-spring),
         color var(--app-motion-base) ease,
         box-shadow var(--app-motion-base) ease;
-    transition-delay: var(--stack-delay, 0ms);
+    transition-delay: var(--stack-delay, var(--app-motion-base));
 
     & + & {
         margin-left: -6px;
@@ -1976,7 +2058,7 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
     height: 18px;
     padding: 0 5px;
     margin-left: 6px;
-    border-radius: 9px;
+    border-radius: var(--app-radius-lg);
     background: rgba(250, 173, 20, 0.2);
     color: var(--td-warning-color);
     font-size: var(--app-text-sm);

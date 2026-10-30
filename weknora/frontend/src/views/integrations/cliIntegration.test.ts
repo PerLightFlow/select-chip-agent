@@ -20,6 +20,13 @@ test('unresolved desktop URLs use an explicit server placeholder', () => {
   assert.ok(buildCLIConnectCommand('/api/v1', 'wails://wails.localhost').includes("--host 'https://your-server.com'"))
 })
 
+test('company-provided CLI paths use the configured executable without changing protocol commands', () => {
+  assert.equal(
+    buildCLIConnectCommand('https://company.example/api/v1', 'https://company.example', true),
+    '"$CLI_BIN" profile add solex --host \'https://company.example\' --use &&\n"$CLI_BIN" auth login',
+  )
+})
+
 test('copyable host arguments remain literal in a POSIX shell', () => {
   const host = "https://kb.example.com/team'/$HOME/`printf-injected`/$(printf-injected)"
   const command = buildCLIConnectCommand(`${host}/api/v1`, 'https://kb.example.com')

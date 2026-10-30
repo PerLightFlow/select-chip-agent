@@ -221,7 +221,7 @@
               <t-icon name="check-circle-filled" class="hint-icon hint-icon--ok" />
               <div>
                 {{ $t('settings.weknoraCloud.modelHintConfigured') }}
-                <a href="https://developers.weixin.qq.com/doc/aispeech/knowledge/atomic_capability/atomic_interface.html"
+                <a href="/platform/settings?section=help&topic=models"
                   target="_blank" rel="noopener noreferrer" class="doc-link">
                   {{ $t('settings.weknoraCloud.modelHintDocsLink') }}
                   <t-icon name="link" class="link-icon" />
@@ -243,7 +243,7 @@
                   <t-button variant="text" size="small" @click="goToWeKnoraCloudSettings"
                     style="padding: 0; height: auto;">
                     <template #icon><t-icon name="jump" /></template>
-                    {{ $t('settings.weknoraCloud.goToSettings') }}
+                    {{ currentLocale.startsWith('zh') ? '查看接入说明' : 'Connection help' }}
                   </t-button>
                 </div>
               </div>
@@ -775,7 +775,7 @@ const loadProviders = async (force = false) => {
   }
 }
 
-const providerOptions = computed<ModelProviderOption[]>(() => providersStore.providersFor(activeModelType.value))
+const providerOptions = computed<ModelProviderOption[]>(() => providersStore.providersFor(activeModelType.value).filter(provider => provider.value !== 'weknoracloud'))
 
 const selectedProvider = computed<ModelProviderOption | undefined>(() => {
   const id = formData.value.provider
@@ -784,14 +784,15 @@ const selectedProvider = computed<ModelProviderOption | undefined>(() => {
 })
 
 const currentLocale = computed(() => String(locale.value || ''))
-const providerDisplayLabel = (p: ModelProviderOption) => providerLabel(p, currentLocale.value)
-const providerDisplayDescription = (p: ModelProviderOption) => providerDescription(p, currentLocale.value)
-const selectedProviderIcon = computed(() => providerIcon(selectedProvider.value))
+const savedCloudLabel = computed(() => currentLocale.value.startsWith('zh') ? '已保存的云模型服务' : 'Saved cloud model service')
+const providerDisplayLabel = (p: ModelProviderOption) => p.value === 'weknoracloud' ? savedCloudLabel.value : providerLabel(p, currentLocale.value)
+const providerDisplayDescription = (p: ModelProviderOption) => p.value === 'weknoracloud' ? '' : providerDescription(p, currentLocale.value)
+const selectedProviderIcon = computed(() => formData.value.provider === 'weknoracloud' ? '' : providerIcon(selectedProvider.value))
 /** Localized vendor name, or the raw stored id when the catalog no longer has it. */
 const selectedProviderDisplayLabel = computed(() => (
   selectedProvider.value
     ? providerDisplayLabel(selectedProvider.value)
-    : (formData.value.provider || '')
+    : (formData.value.provider === 'weknoracloud' ? savedCloudLabel.value : formData.value.provider || '')
 ))
 /**
  * Pin a select's dropdown to the width of its input.
@@ -952,7 +953,7 @@ const findCatalogEntry = (name: string) => catalogEntries.value.find(m => m.id =
  */
 const vendorDocLink = computed(() => {
   const provider = selectedProvider.value
-  if (!provider) return ''
+  if (!provider || provider.value === 'weknoracloud') return ''
   const entry = findCatalogEntry((formData.value.modelName || '').trim())
   const url = entry?.source || provider.website || ''
   return /^https?:\/\//i.test(url) ? url : ''
@@ -1309,7 +1310,7 @@ const goToWeKnoraCloudSettings = async () => {
     uiStore.closeSettings()
     await nextTick()
   }
-  uiStore.openSettings('weknoracloud')
+  uiStore.openSettings('help')
 }
 
 const formData = ref<ModelFormData>({

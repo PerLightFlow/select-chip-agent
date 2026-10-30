@@ -9,11 +9,15 @@ const tabletStyles = source.slice(
 )
 const phoneStyles = source.slice(source.indexOf('@media (max-width: 480px)'))
 
-test('phone login puts the form before the showcase and reserves room for the header', () => {
-  assert.match(tabletStyles, /\.login-layout\s*\{[\s\S]*?flex-direction:\s*column;[\s\S]*?padding-top:\s*64px;/)
-  assert.match(tabletStyles, /\.form-section\s*\{[\s\S]*?order:\s*-1;/)
+test('phone login keeps the form ahead of the showcase with a header in document flow', () => {
+  assert.match(tabletStyles, /\.login-main\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;/)
+  assert.match(tabletStyles, /\.form-section\s*\{[^}]*order:\s*-1;/)
+  const headerStyles = source.match(/\.login-header\s*\{([^}]+)\}/)?.[1] || ''
+  assert.doesNotMatch(headerStyles, /position:\s*(?:absolute|fixed)/)
 })
 
-test('narrow login headers use icon-only links to avoid overlapping the logo', () => {
-  assert.match(phoneStyles, /\.header-links\s*\{[\s\S]*?\.link-text\s*\{\s*display:\s*none;/)
+test('narrow login headers hide the brand caption and keep the language control visible', () => {
+  assert.match(tabletStyles, /\.brand-divider,\s*\.brand-caption\s*\{\s*display:\s*none;/)
+  assert.match(phoneStyles, /\.logo-image\s*\{[^}]*width:\s*108px;/)
+  assert.match(source, /class="language-trigger"[\s\S]*?:aria-expanded="showLanguageMenu"/)
 })

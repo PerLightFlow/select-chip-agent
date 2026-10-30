@@ -26,8 +26,8 @@
             </div>
             <p class="product-desc">
               {{ t('localBrowser.productDescription') }}
-              <a class="product-link" href="https://github.com/Tencent/BrowserSkill" target="_blank"
-                rel="noopener noreferrer">GitHub<t-icon name="jump" size="12px" /></a>
+              <a class="product-link" href="/platform/settings?section=help&topic=browser" target="_blank"
+                rel="noopener noreferrer">使用帮助<t-icon name="jump" size="12px" /></a>
             </p>
           </div>
         </div>
@@ -171,7 +171,7 @@ import { get, post, getDown } from '@/utils/request'
 import { pairingPageOrigin, preferredDesktopAPIBase } from '@/utils/browserPairingOrigin'
 import { useBrowserConnectionStore } from '@/stores/browserConnection'
 import { useUIStore } from '@/stores/ui'
-import browserLogo from '@/assets/browserskill/logo.png'
+import browserLogo from '@/assets/solex/solex-symbol.svg'
 import BrowserSearchPreferences from './BrowserSearchPreferences.vue'
 interface Device { id: string; label: string; last_seen_at: string }
 interface Connection { enabled: boolean; connected: boolean; device?: Device; extension_available: boolean; extension_version?: string }
@@ -269,7 +269,7 @@ async function download() {
     const blob = await getDown(`${endpoint}/extension?t=${Date.now()}`)
     if (!alive) return
     const url = URL.createObjectURL(blob), link = document.createElement('a')
-    link.href = url; link.download = 'browser-skill-weknora.zip'; link.click()
+    link.href = url; link.download = 'solex-browser-extension.zip'; link.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   } catch (e: any) { if (alive) error.value = e?.message || t('localBrowser.failed') }
   finally { if (alive) downloading.value = false }
