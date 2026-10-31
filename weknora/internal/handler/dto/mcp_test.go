@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -136,4 +137,58 @@ func TestMCPServiceResponse_EchoesClientIDButNotItsSecret(t *testing.T) {
 	assert.NotContains(t, s, "client-secret-do-not-leak")
 	assert.Contains(t, s, `"client_id":"pre-registered"`)
 	assert.Contains(t, s, `"client_secret":{"configured":true}`)
+}
+
+func TestMCPServiceResponse_ManagedSystemAdminCanEditBuiltin(t *testing.T) {
+	t.Setenv("SOLEX_MANAGED_RUNTIME", "true")
+	// System administration does not require Admin membership of the active
+	// workspace. Configuration remains visible when that membership is Viewer.
+	ctx := context.WithValue(viewerContext(), types.SystemAdminContextKey, true)
+	url := "https://shared-provider.example.com/mcp"
+	svc := &types.MCPService{
+		ID:        "builtin-managed",
+		IsBuiltin: true,
+		URL:       &url,
+		Headers:   types.MCPHeaders{"X-Route": "shared"},
+		AuthConfig: &types.MCPAuthConfig{
+			AuthType:     types.MCPAuthOAuth,
+			ClientID:     "registered-client",
+			APIKey:       "never-return-api-key",
+			Token:        "never-return-token",
+			ClientSecret: "never-return-client-secret",
+		},
+	}
+	resp := NewMCPServiceResponse(ctx, svc)
+	assert.Equal(t, &url, resp.URL)
+	assert.Equal(t, svc.Headers, resp.Headers)
+	if assert.NotNil(t, resp.AuthConfig) {
+		assert.Equal(t, "registered-client", resp.AuthConfig.ClientID)
+		assert.Equal(t, types.MCPAuthOAuth, resp.AuthConfig.AuthType)
+	}
+	assert.True(t, resp.Credentials["api_key"].Configured)
+	assert.True(t, resp.Credentials["token"].Configured)
+	assert.True(t, resp.Credentials["client_secret"].Configured)
+	body, err := json.Marshal(resp)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(body), "never-return-")
+
+	// An ordinary personal-workspace Owner still only receives the catalog.
+	ordinary := NewMCPServiceResponse(ownerContext(), svc)
+	assert.Nil(t, ordinary.URL)
+	assert.Nil(t, ordinary.Headers)
+	assert.Nil(t, ordinary.AuthConfig)
+	assert.Nil(t, ordinary.Credentials)
+}
+
+func TestMCPServiceResponse_UnmanagedBuiltinRetainsOriginalRedaction(t *testing.T) {
+	t.Setenv("SOLEX_MANAGED_RUNTIME", "false")
+	ctx := context.WithValue(viewerContext(), types.SystemAdminContextKey, true)
+	url := "https://shared-provider.example.com/mcp"
+	resp := NewMCPServiceResponse(ctx, &types.MCPService{
+		IsBuiltin: true, URL: &url,
+		AuthConfig: &types.MCPAuthConfig{APIKey: "never-return-api-key"},
+	})
+	assert.Nil(t, resp.URL)
+	assert.Nil(t, resp.AuthConfig)
+	assert.Nil(t, resp.Credentials)
 }

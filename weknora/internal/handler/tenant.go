@@ -1276,6 +1276,9 @@ func (h *TenantHandler) SearchTenants(c *gin.Context) {
 // @Security     ApiKeyAuth
 // @Router       /tenants/kv/{key} [get]
 func (h *TenantHandler) GetTenantKV(c *gin.Context) {
+	if !h.useManagedRuntimeConfigContext(c) {
+		return
+	}
 	ctx := c.Request.Context()
 	key := secutils.SanitizeForLog(c.Param("key"))
 
@@ -1337,6 +1340,9 @@ func (h *TenantHandler) GetTenantKV(c *gin.Context) {
 // @Security     ApiKeyAuth
 // @Router       /tenants/kv/{key} [put]
 func (h *TenantHandler) UpdateTenantKV(c *gin.Context) {
+	if !h.useManagedRuntimeConfigContext(c) {
+		return
+	}
 	ctx := c.Request.Context()
 	key := secutils.SanitizeForLog(c.Param("key"))
 

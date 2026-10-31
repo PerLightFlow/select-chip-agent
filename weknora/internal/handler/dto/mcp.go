@@ -86,7 +86,8 @@ func NewMCPServiceResponse(ctx context.Context, svc *types.MCPService) *MCPServi
 	if svc == nil {
 		return nil
 	}
-	includeDetail := CanViewIntegrationSecrets(ctx)
+	canManageBuiltin := svc.IsBuiltin && types.ManagedRuntimeEnabled() && types.IsSystemAdminFromContext(ctx)
+	includeDetail := CanViewIntegrationSecrets(ctx) || canManageBuiltin
 	resp := &MCPServiceResponse{
 		ID:                svc.ID,
 		TenantID:          svc.TenantID,
@@ -125,7 +126,7 @@ func NewMCPServiceResponse(ctx context.Context, svc *types.MCPService) *MCPServi
 		}
 		resp.AuthConfig = auth
 	}
-	if svc.IsBuiltin {
+	if svc.IsBuiltin && !canManageBuiltin {
 		// Builtin services are shared across tenants — strip everything that
 		// could leak how this tenant configured the underlying provider.
 		resp.URL = nil

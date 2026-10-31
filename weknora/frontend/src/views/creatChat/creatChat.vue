@@ -77,6 +77,8 @@
         @update:visible="(val) => val ? null : uiStore.closeKBEditor()" @success="handleKBEditorSuccess" />
 </template>
 <script setup lang="ts">
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
+
 import { ref, watch, onMounted, nextTick, computed } from 'vue';
 import ContextualGuide from '@/components/ContextualGuide.vue';
 import InputField from '@/components/Input-field.vue';
@@ -96,6 +98,7 @@ import { useI18n } from 'vue-i18n';
 import KnowledgeBaseEditorModal from '@/views/knowledge/KnowledgeBaseEditorModal.vue';
 import { useKnowledgeBaseCreationNavigation } from '@/hooks/useKnowledgeBaseCreationNavigation';
 
+const { managed: managedRuntime } = useManagedRuntime()
 const router = useRouter();
 const route = useRoute();
 const usemenuStore = useMenuStore();
@@ -262,8 +265,8 @@ async function createNewSession(value: string, modelId: string, mentionedItems: 
     // 添加 Agent 配置（知识库信息在 agent_config 中）
     sessionData.agent_config = {
         enabled: true,
-        max_iterations: settingsStore.agentConfig.maxIterations,
-        temperature: settingsStore.agentConfig.temperature,
+        max_iterations: managedRuntime.value ? undefined : settingsStore.agentConfig.maxIterations,
+        temperature: managedRuntime.value ? undefined : settingsStore.agentConfig.temperature,
         knowledge_bases: selectedKbs,  // 所有选中的知识库
         knowledge_ids: selectedFiles,  // 所有选中的普通知识/文件
         allowed_tools: settingsStore.agentConfig.allowedTools

@@ -45,7 +45,14 @@ func NewWebSearchProviderResponse(ctx context.Context, e *types.WebSearchProvide
 		ProxyURL:    e.Parameters.ProxyURL,
 		ExtraConfig: e.Parameters.ExtraConfig,
 	}
-	if !CanViewIntegrationSecrets(ctx) {
+	includeDetail := CanViewIntegrationSecrets(ctx)
+	if types.ManagedRuntimeEnabled() {
+		// The repository returns central configuration in managed mode. A
+		// personal workspace Owner must not inherit its proxy credentials or
+		// provider-specific authentication fields along with the search tool.
+		includeDetail = types.IsSystemAdminFromContext(ctx)
+	}
+	if !includeDetail {
 		params.ProxyURL = ""
 		params.ExtraConfig = nil
 	}

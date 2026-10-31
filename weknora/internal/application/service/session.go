@@ -1081,6 +1081,10 @@ func (s *sessionService) GenerateTitle(ctx context.Context,
 		return "", stderrors.New("no user message found")
 	}
 
+	// Managed users inherit the utility/default model for title generation too.
+	if managedModelRestricted(ctx) {
+		modelID = ""
+	}
 	// Use provided modelID, or fall back to the workspace utility/default chat model
 	if modelID == "" {
 		models, err := s.modelService.ListModels(ctx)

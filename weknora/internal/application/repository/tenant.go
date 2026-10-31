@@ -40,6 +40,13 @@ func (r *tenantRepository) GetTenantByID(ctx context.Context, id uint64) (*types
 		}
 		return nil, err
 	}
+	if types.ManagedRuntimeEnabled() && id != types.ManagedRuntimeTenantID() {
+		central, err := r.GetTenantByID(ctx, types.ManagedRuntimeTenantID())
+		if err != nil {
+			return nil, err
+		}
+		return types.InheritManagedRuntimeConfig(&tenant, central), nil
+	}
 	return &tenant, nil
 }
 
@@ -56,8 +63,19 @@ func (r *tenantRepository) GetTenantsByIDs(ctx context.Context, ids []uint64) (m
 		return nil, err
 	}
 	out := make(map[uint64]*types.Tenant, len(tenants))
+	var central *types.Tenant
+	if types.ManagedRuntimeEnabled() {
+		var err error
+		central, err = r.GetTenantByID(ctx, types.ManagedRuntimeTenantID())
+		if err != nil {
+			return nil, err
+		}
+	}
 	for _, t := range tenants {
 		if t != nil {
+			if central != nil && t.ID != central.ID {
+				t = types.InheritManagedRuntimeConfig(t, central)
+			}
 			out[t.ID] = t
 		}
 	}
@@ -119,7 +137,12 @@ func (r *tenantRepository) SearchTenants(ctx context.Context, keyword string, te
 
 // UpdateTenant updates tenant.
 func (r *tenantRepository) UpdateTenant(ctx context.Context, tenant *types.Tenant) error {
-	return r.db.WithContext(ctx).Model(&types.Tenant{}).Where("id = ?", tenant.ID).Updates(tenant).Error
+	query := r.db.WithContext(ctx).Model(&types.Tenant{}).Where("id = ?", tenant.ID)
+	if types.ManagedRuntimeEnabled() && tenant.ID != types.ManagedRuntimeTenantID() {
+		// These are read-time overlays, not a per-workspace copy of central state.
+		query = query.Omit("DefaultSettings", "ContextConfig", "WebSearchConfig", "ParserEngineConfig", "RetrievalConfig")
+	}
+	return query.Updates(tenant).Error
 }
 
 func (r *tenantRepository) UpdateTenantProfile(ctx context.Context, id uint64, name, description *string) error {

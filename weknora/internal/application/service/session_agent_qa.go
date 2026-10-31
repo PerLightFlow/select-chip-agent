@@ -48,6 +48,7 @@ func (s *sessionService) AgentQA(
 	req *types.QARequest,
 	eventBus *event.EventBus,
 ) error {
+	req = s.withManagedAgentModelDefaults(ctx, req)
 	sessionID := req.Session.ID
 	if req.Session.Kind == types.SessionKindAgentDelegated {
 		b := collaboration.FromContext(ctx)
@@ -173,17 +174,11 @@ func (s *sessionService) AgentQA(
 	// must not force users to configure an otherwise-unused rerank model.
 	var rerankModel rerank.Reranker
 	if agentRequiresRerankModel(req.CustomAgent) {
-		// Rerank model is resolved purely from the agent config now.
-		// We used to fall back to ConversationConfig.RerankModelID at
-		// the tenant level, but that path encouraged "leave rerank
-		// blank on the agent and inherit silently" which made debugging
-		// retrieval quality a guessing game across tenant settings vs
-		// agent settings. Forcing the agent to declare its own rerank
-		// model puts the configuration where the user actually edits
-		// the agent. If a Wiki-only agent doesn't need reranking,
-		// agentRequiresRerankModel() below already lets it pass.
+		// Managed agents inherit the optional central reranker before this
+		// check. Without one they keep retrieval order; workspace-managed
+		// deployments retain their existing explicit-agent requirement.
 		rerankModelID := req.CustomAgent.Config.RerankModelID
-		if rerankModelID == "" && types.UsesWorkspaceModelFallback(req.CustomAgent) {
+		if rerankModelID == "" && !managedModelRestricted(ctx) && types.UsesWorkspaceModelFallback(req.CustomAgent) {
 			// Nobody can set a rerank model on an internal agent, so it takes
 			// the workspace's; search_knowledge keeps retrieval order without one.
 			models, listErr := s.modelService.ListModels(ctx)
@@ -196,7 +191,7 @@ func (s *sessionService) AgentQA(
 				logger.Infof(ctx, "No rerank model in the workspace, internal agent %s searches without reranking",
 					req.CustomAgent.ID)
 			}
-		} else if rerankModelID == "" {
+		} else if rerankModelID == "" && !managedModelRestricted(ctx) {
 			logger.Warnf(ctx, "No rerank model configured for custom agent %s, but knowledge_search tool is enabled", req.CustomAgent.ID)
 			return errors.New("rerank model is not configured: please set rerank_model_id on the agent")
 		}
@@ -524,6 +519,11 @@ func (s *sessionService) buildAgentConfig(
 		return s.restoreInheritedConfig(ctx, inherited, tenantInfo)
 	}
 	customAgent := req.CustomAgent
+	if managedModelRestricted(ctx) {
+		copy := *customAgent
+		customAgent = &copy
+		s.applyManagedAgentModelDefaults(ctx, &customAgent.Config)
+	}
 	agentConfig := &types.AgentConfig{
 		MaxIterations:                 customAgent.Config.MaxIterations,
 		Temperature:                   customAgent.Config.Temperature,
@@ -553,7 +553,9 @@ func (s *sessionService) buildAgentConfig(
 		// anything else is a barrier that runs alone, in model order.
 		ParallelToolCalls: true,
 	}
-	applyRequestReasoningEffort(req.ReasoningEffort, &agentConfig.Thinking, &agentConfig.ReasoningEffort)
+	if !managedModelRestricted(ctx) {
+		applyRequestReasoningEffort(req.ReasoningEffort, &agentConfig.Thinking, &agentConfig.ReasoningEffort)
+	}
 	// An unset MCP mode means "all" at runtime, but the share scope and the
 	// agent UI both present it as none. A shared run must not hand receivers
 	// every MCP service (with the owner's credentials) that its owner believes

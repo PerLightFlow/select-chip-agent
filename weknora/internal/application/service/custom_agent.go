@@ -106,6 +106,7 @@ func (s *customAgentService) CreateAgent(ctx context.Context, agent *types.Custo
 
 	// Set defaults
 	agent.EnsureCreationDefaults()
+	normalizeManagedAgentModels(ctx, &agent.Config)
 	if err := agent.Config.QuestionSuggestions.Validate(); err != nil {
 		return nil, err
 	}
@@ -145,11 +146,13 @@ func (s *customAgentService) GetAgentByID(ctx context.Context, id string) (*type
 		if err == nil {
 			// Found in database, overlay locale-specific name/description/avatar
 			agent.EnsureDefaults()
+			normalizeManagedAgentModels(ctx, &agent.Config)
 			types.ApplyBuiltinAgentLocalization(ctx, agent)
 			return agent, nil
 		}
 		// Not in database, return default built-in agent from registry (i18n-aware)
 		if builtinAgent := types.GetBuiltinAgentWithContext(ctx, id, tenantID); builtinAgent != nil {
+			normalizeManagedAgentModels(ctx, &builtinAgent.Config)
 			return builtinAgent, nil
 		}
 	}
@@ -167,6 +170,7 @@ func (s *customAgentService) GetAgentByID(ctx context.Context, id string) (*type
 	}
 
 	agent.EnsureDefaults()
+	normalizeManagedAgentModels(ctx, &agent.Config)
 	return agent, nil
 }
 
@@ -184,6 +188,7 @@ func (s *customAgentService) GetAgentByIDAndTenant(ctx context.Context, id strin
 		return nil, err
 	}
 	agent.EnsureDefaults()
+	normalizeManagedAgentModels(ctx, &agent.Config)
 	return agent, nil
 }
 
@@ -207,6 +212,7 @@ func (s *customAgentService) ListAgents(ctx context.Context) ([]*types.CustomAge
 	builtinInDB := make(map[string]bool)
 	for _, agent := range allAgents {
 		agent.EnsureDefaults()
+		normalizeManagedAgentModels(ctx, &agent.Config)
 		if types.IsBuiltinAgentID(agent.ID) {
 			builtinInDB[agent.ID] = true
 		}
@@ -230,6 +236,7 @@ func (s *customAgentService) ListAgents(ctx context.Context) ([]*types.CustomAge
 		} else {
 			// Use default built-in agent (i18n-aware)
 			if agent := types.GetBuiltinAgentWithContext(ctx, builtinID, tenantID); agent != nil {
+				normalizeManagedAgentModels(ctx, &agent.Config)
 				result = append(result, agent)
 			}
 		}
@@ -310,6 +317,7 @@ func (s *customAgentService) UpdateAgent(
 
 	// Ensure defaults
 	existingAgent.EnsureDefaults()
+	normalizeManagedAgentModels(ctx, &existingAgent.Config)
 	if err := existingAgent.Config.QuestionSuggestions.Validate(); err != nil {
 		return nil, err
 	}
@@ -376,6 +384,7 @@ func (s *customAgentService) updateBuiltinAgent(ctx context.Context, agent *type
 		existingAgent.Config = agent.Config
 		existingAgent.UpdatedAt = time.Now()
 		existingAgent.EnsureDefaults()
+		normalizeManagedAgentModels(ctx, &existingAgent.Config)
 		if err := existingAgent.Config.QuestionSuggestions.Validate(); err != nil {
 			return nil, err
 		}
@@ -407,6 +416,7 @@ func (s *customAgentService) updateBuiltinAgent(ctx context.Context, agent *type
 		UpdatedAt:   time.Now(),
 	}
 	newAgent.EnsureDefaults()
+	normalizeManagedAgentModels(ctx, &newAgent.Config)
 	if err := newAgent.Config.QuestionSuggestions.Validate(); err != nil {
 		return nil, err
 	}
@@ -511,6 +521,7 @@ func (s *customAgentService) CopyAgent(ctx context.Context, id string) (*types.C
 
 	// Ensure defaults
 	newAgent.EnsureDefaults()
+	normalizeManagedAgentModels(ctx, &newAgent.Config)
 
 	logger.Infof(ctx, "Copying agent, source ID: %s, new ID: %s", id, newAgent.ID)
 

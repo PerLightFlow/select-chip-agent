@@ -201,6 +201,8 @@
 </template>
 
 <script setup lang="ts">
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
+
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUIStore } from '@/stores/ui'
@@ -220,6 +222,7 @@ import { useRoleLabel, useHomeTenant } from '@/composables/useRoleLabel'
 import { getRootZoom, rectToCssPx, cssViewportSize } from '@/utils/zoom'
 import { openNewUserGuide } from '@/config/contextualGuides'
 import { SETTINGS_MANAGEMENT_SHORTCUT_MIN_ROLE } from '@/config/settingsAccess'
+const { managed: managedRuntime } = useManagedRuntime()
 const { t } = useI18n()
 
 const router = useRouter()
@@ -256,9 +259,9 @@ const canManageMembers = computed(() =>
   authStore.canAccessAllTenants || authStore.hasRole(SETTINGS_MANAGEMENT_SHORTCUT_MIN_ROLE.members),
 )
 const canManageModels = computed(() =>
-  authStore.canAccessAllTenants ||
+  !managedRuntime.value && (authStore.canAccessAllTenants ||
   authStore.isSystemAdmin ||
-  authStore.hasRole(SETTINGS_MANAGEMENT_SHORTCUT_MIN_ROLE.models),
+  authStore.hasRole(SETTINGS_MANAGEMENT_SHORTCUT_MIN_ROLE.models)),
 )
 const menuRef = ref<HTMLElement>()
 const tenantMenuItemRef = ref<HTMLElement>()

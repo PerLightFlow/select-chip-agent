@@ -195,6 +195,8 @@
 </template>
 
 <script setup lang="ts">
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
+
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { LocationQueryRaw } from 'vue-router'
@@ -253,6 +255,7 @@ import {
   settingsQueryUnchanged,
 } from '@/config/settingsRoute'
 
+const { canConfigureSection } = useManagedRuntime()
 const route = useRoute()
 const router = useRouter()
 const uiStore = useUIStore()
@@ -333,6 +336,7 @@ const isSectionSupported = (key: string): boolean => {
 }
 
 const canSeeSection = (key: string): boolean => {
+  if (!canConfigureSection(key)) return false
   if (isIntegrationSection(key)) {
     const min = INTEGRATION_TAB_MIN_ROLE[integrationTabFromSection(key)]
     if (!min) return true

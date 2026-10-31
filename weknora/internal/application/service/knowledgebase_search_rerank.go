@@ -26,6 +26,21 @@ func resolveRerankModelID(
 	requested string,
 	rc *types.RetrievalConfig,
 ) (string, string, error) {
+	if managedModelRestricted(ctx) {
+		models, err := modelService.ListModels(ctx)
+		if err != nil {
+			return "", "", err
+		}
+		model := types.PickManagedDefaultModel(models, types.ModelTypeRerank)
+		id := ""
+		if model != nil {
+			id = model.ID
+		}
+		if requested != "" && requested != id {
+			return "", "", apperrors.NewForbiddenError("重排模型由系统管理员统一配置")
+		}
+		return id, types.RerankModelSourceTenant, nil
+	}
 	if requested != "" {
 		model, err := modelService.GetModelByID(ctx, requested)
 		if err != nil || model == nil {

@@ -1,3 +1,4 @@
+import { managedSettingsSectionAllowed, usesManagedRuntime } from '@/config/managedRuntime'
 import { createRouter, createWebHistory } from 'vue-router'
 import { defineComponent } from 'vue'
 import type { RouteLocationNormalized } from 'vue-router'
@@ -386,6 +387,14 @@ router.beforeEach(async (to, from, next) => {
   // 探测失败时 Store 会 fail-open，真正的权限和可用性仍由后端接口校验。
   const deploymentCapabilities = useDeploymentCapabilitiesStore()
   await deploymentCapabilities.ensureLoaded()
+  const managed = usesManagedRuntime(deploymentCapabilities.managedRuntime, authStore.isSystemAdmin, deploymentCapabilities.loaded && !deploymentCapabilities.loadError)
+  const settingsSection = to.path === '/platform/settings'
+    ? normalizeSettingsSection(String(to.query.section || 'general'), typeof to.query.tab === 'string' ? to.query.tab : undefined)
+    : to.name === 'toolbox' ? String(to.params.section || '') : ''
+  if (!managedSettingsSectionAllowed(settingsSection, managed)) {
+    next({ path: '/platform/settings', query: { section: 'general' }, replace: true })
+    return
+  }
   const requiredCapability = to.meta.requiredCapability as DeploymentCapabilityKey | undefined
   if (requiredCapability && !deploymentCapabilities.isSupported(requiredCapability)) {
     MessagePlugin.warning(i18n.global.t('settings.capabilityUnavailable'))

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
@@ -22,6 +23,10 @@ func NewWebSearchProviderRepository(db *gorm.DB) interfaces.WebSearchProviderRep
 
 // Create creates a new web search provider
 func (r *webSearchProviderRepository) Create(ctx context.Context, provider *types.WebSearchProviderEntity) error {
+	if err := managedSearchWrite(ctx); err != nil {
+		return err
+	}
+	provider.TenantID = managedSearchTenantID(provider.TenantID)
 	if provider.IsDefault {
 		return r.withDefaultTransition(ctx, provider.TenantID, "", func(tx *gorm.DB) error {
 			return tx.Create(provider).Error
@@ -32,6 +37,7 @@ func (r *webSearchProviderRepository) Create(ctx context.Context, provider *type
 
 // GetByID retrieves a web search provider by ID within a tenant scope
 func (r *webSearchProviderRepository) GetByID(ctx context.Context, tenantID uint64, id string) (*types.WebSearchProviderEntity, error) {
+	tenantID = managedSearchTenantID(tenantID)
 	var provider types.WebSearchProviderEntity
 	if err := r.db.WithContext(ctx).Where(
 		"id = ? AND tenant_id = ?", id, tenantID,
@@ -46,6 +52,7 @@ func (r *webSearchProviderRepository) GetByID(ctx context.Context, tenantID uint
 
 // GetDefault retrieves the default provider (is_default=true) for a tenant, or nil if none.
 func (r *webSearchProviderRepository) GetDefault(ctx context.Context, tenantID uint64) (*types.WebSearchProviderEntity, error) {
+	tenantID = managedSearchTenantID(tenantID)
 	var provider types.WebSearchProviderEntity
 	if err := r.db.WithContext(ctx).Where(
 		"tenant_id = ? AND is_default = ?", tenantID, true,
@@ -60,6 +67,7 @@ func (r *webSearchProviderRepository) GetDefault(ctx context.Context, tenantID u
 
 // List lists all web search providers for a tenant
 func (r *webSearchProviderRepository) List(ctx context.Context, tenantID uint64) ([]*types.WebSearchProviderEntity, error) {
+	tenantID = managedSearchTenantID(tenantID)
 	var providers []*types.WebSearchProviderEntity
 	if err := r.db.WithContext(ctx).Where(
 		"tenant_id = ?", tenantID,
@@ -71,6 +79,10 @@ func (r *webSearchProviderRepository) List(ctx context.Context, tenantID uint64)
 
 // Update updates a web search provider
 func (r *webSearchProviderRepository) Update(ctx context.Context, provider *types.WebSearchProviderEntity) error {
+	if err := managedSearchWrite(ctx); err != nil {
+		return err
+	}
+	provider.TenantID = managedSearchTenantID(provider.TenantID)
 	update := func(db *gorm.DB) error {
 		result := db.Model(&types.WebSearchProviderEntity{}).Where(
 			"id = ? AND tenant_id = ?", provider.ID, provider.TenantID,
@@ -91,6 +103,10 @@ func (r *webSearchProviderRepository) Update(ctx context.Context, provider *type
 
 // Delete soft-deletes a web search provider
 func (r *webSearchProviderRepository) Delete(ctx context.Context, tenantID uint64, id string) error {
+	if err := managedSearchWrite(ctx); err != nil {
+		return err
+	}
+	tenantID = managedSearchTenantID(tenantID)
 	return r.db.WithContext(ctx).Where(
 		"id = ? AND tenant_id = ?", id, tenantID,
 	).Delete(&types.WebSearchProviderEntity{}).Error
@@ -149,6 +165,12 @@ func lockDefaultProviderScope(tx *gorm.DB, tenantID uint64) error {
 func (r *webSearchProviderRepository) PatchSettings(
 	ctx context.Context, provider *types.WebSearchProviderEntity, fields []string,
 ) error {
+	if err := managedSearchWrite(ctx); err != nil {
+		return err
+	}
+	if provider != nil {
+		provider.TenantID = managedSearchTenantID(provider.TenantID)
+	}
 	if provider == nil || provider.ID == "" || provider.TenantID == 0 || len(fields) == 0 {
 		return errors.New("provider identity and settings are required")
 	}
@@ -180,4 +202,19 @@ func (r *webSearchProviderRepository) PatchSettings(
 		return r.withDefaultTransition(ctx, provider.TenantID, provider.ID, update)
 	}
 	return r.db.WithContext(ctx).Transaction(update)
+}
+
+// Search provider rows hold deployment configuration, never user documents.
+// Only this repository's configuration scope changes; the caller context remains intact.
+func managedSearchTenantID(tenantID uint64) uint64 {
+	if types.ManagedRuntimeEnabled() {
+		return types.ManagedRuntimeTenantID()
+	}
+	return tenantID
+}
+func managedSearchWrite(ctx context.Context) error {
+	if types.ManagedRuntimeEnabled() && (!types.IsSystemAdminFromContext(ctx) || types.ManagedRuntimeTenantID() == 0) {
+		return fmt.Errorf("web search configuration is managed by the system administrator")
+	}
+	return nil
 }

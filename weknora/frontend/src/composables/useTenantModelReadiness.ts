@@ -1,3 +1,4 @@
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
 import { computed, onMounted, ref } from 'vue'
 import { useChatResourcesStore } from '@/stores/chatResources'
 import { evaluateTenantModelReadiness } from '@/utils/tenantModelReadiness'
@@ -10,6 +11,7 @@ import { evaluateTenantModelReadiness } from '@/utils/tenantModelReadiness'
  */
 export function useTenantModelReadiness() {
   const chatResources = useChatResourcesStore()
+  const { managed } = useManagedRuntime()
   const loaded = ref(false)
   const loading = ref(false)
 
@@ -29,9 +31,9 @@ export function useTenantModelReadiness() {
     refresh()
   })
 
-  const isReadyForDocumentKb = computed(() => readiness.value.isReadyForDocumentKb)
+  const isReadyForDocumentKb = computed(() => managed.value || readiness.value.isReadyForDocumentKb)
 
-  const isReadyForAgent = computed(() => readiness.value.isReadyForAgent)
+  const isReadyForAgent = computed(() => managed.value || readiness.value.isReadyForAgent)
 
   const hasChat = computed(() => readiness.value.hasChat)
 

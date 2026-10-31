@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
@@ -21,6 +22,9 @@ func NewMCPServiceRepository(db *gorm.DB) interfaces.MCPServiceRepository {
 
 // Create creates a new MCP service
 func (r *mcpServiceRepository) Create(ctx context.Context, service *types.MCPService) error {
+	if err := managedMCPWrite(ctx); err != nil {
+		return err
+	}
 	return r.db.WithContext(ctx).Create(service).Error
 }
 
@@ -30,7 +34,7 @@ func (r *mcpServiceRepository) GetByID(ctx context.Context, tenantID uint64, id 
 	var service types.MCPService
 	err := r.db.WithContext(ctx).
 		Where("id = ?", id).
-		Where("tenant_id = ? OR is_builtin = true", tenantID).
+		Scopes(managedMCPScope(tenantID)).
 		First(&service).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -47,7 +51,7 @@ func (r *mcpServiceRepository) GetByID(ctx context.Context, tenantID uint64, id 
 func (r *mcpServiceRepository) List(ctx context.Context, tenantID uint64) ([]*types.MCPService, error) {
 	var services []*types.MCPService
 	err := r.db.WithContext(ctx).
-		Where("tenant_id = ? OR is_builtin = true", tenantID).
+		Scopes(managedMCPScope(tenantID)).
 		Order("created_at DESC").
 		Find(&services).Error
 	if err != nil {
@@ -62,7 +66,7 @@ func (r *mcpServiceRepository) List(ctx context.Context, tenantID uint64) ([]*ty
 func (r *mcpServiceRepository) ListEnabled(ctx context.Context, tenantID uint64) ([]*types.MCPService, error) {
 	var services []*types.MCPService
 	err := r.db.WithContext(ctx).
-		Where("(tenant_id = ? OR is_builtin = true) AND enabled = ?", tenantID, true).
+		Scopes(managedMCPScope(tenantID)).Where("enabled = ?", true).
 		Order("created_at DESC").
 		Find(&services).Error
 	if err != nil {
@@ -85,7 +89,7 @@ func (r *mcpServiceRepository) ListByIDs(
 
 	var services []*types.MCPService
 	err := r.db.WithContext(ctx).
-		Where("(tenant_id = ? OR is_builtin = true) AND id IN ?", tenantID, ids).
+		Scopes(managedMCPScope(tenantID)).Where("id IN ?", ids).
 		Find(&services).Error
 	if err != nil {
 		return nil, err
@@ -96,6 +100,9 @@ func (r *mcpServiceRepository) ListByIDs(
 
 // Update updates an MCP service
 func (r *mcpServiceRepository) Update(ctx context.Context, service *types.MCPService) error {
+	if err := managedMCPWrite(ctx); err != nil {
+		return err
+	}
 	// Build update map with only non-zero fields (except enabled which should always be updated if set)
 	updateMap := make(map[string]interface{})
 	updateMap["updated_at"] = service.UpdatedAt
@@ -141,7 +148,25 @@ func (r *mcpServiceRepository) Update(ctx context.Context, service *types.MCPSer
 
 // Delete deletes an MCP service (soft delete)
 func (r *mcpServiceRepository) Delete(ctx context.Context, tenantID uint64, id string) error {
+	if err := managedMCPWrite(ctx); err != nil {
+		return err
+	}
 	return r.db.WithContext(ctx).
 		Where("id = ? AND tenant_id = ?", id, tenantID).
 		Delete(&types.MCPService{}).Error
+}
+
+func managedMCPScope(tenantID uint64) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if types.ManagedRuntimeEnabled() {
+			return db.Where("is_builtin = ?", true)
+		}
+		return db.Where("tenant_id = ? OR is_builtin = true", tenantID)
+	}
+}
+func managedMCPWrite(ctx context.Context) error {
+	if types.ManagedRuntimeEnabled() && !types.IsSystemAdminFromContext(ctx) {
+		return fmt.Errorf("MCP configuration is managed by the system administrator")
+	}
+	return nil
 }

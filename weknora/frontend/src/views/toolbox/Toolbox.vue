@@ -56,6 +56,8 @@
 </template>
 
 <script setup lang="ts">
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
+
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -77,6 +79,7 @@ import SkillSettings from '@/views/settings/SkillSettings.vue'
 import McpSettings from '@/views/settings/McpSettings.vue'
 import BrowserConnectionSettings from '@/views/settings/BrowserConnectionSettings.vue'
 
+const { canConfigureSection } = useManagedRuntime()
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
@@ -87,7 +90,7 @@ const panel = ref<{ openAdd?: () => void } | null>(null)
 const counts = reactive<Partial<Record<ToolboxSection, number>>>({})
 const requestedSection = computed(() => typeof route.params.section === 'string' ? route.params.section : '')
 const sandboxId = computed(() => typeof route.query.sandboxId === 'string' ? route.query.sandboxId : '')
-const visibleItems = computed(() => TOOLBOX_ITEMS.filter((item) => canAccessToolboxSection(item.key, {
+const visibleItems = computed(() => TOOLBOX_ITEMS.filter((item) => canConfigureSection(item.key) && canAccessToolboxSection(item.key, {
   currentTenantRole: authStore.currentTenantRole,
   canAccessAllTenants: authStore.canAccessAllTenants,
   hasRole: (role) => authStore.hasRole(role),

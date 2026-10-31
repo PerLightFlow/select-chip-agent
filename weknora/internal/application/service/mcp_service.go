@@ -37,6 +37,13 @@ func NewMCPServiceService(
 
 // CreateMCPService creates a new MCP service
 func (s *mcpServiceService) CreateMCPService(ctx context.Context, service *types.MCPService) error {
+	if types.ManagedRuntimeEnabled() {
+		if !types.IsSystemAdminFromContext(ctx) {
+			return fmt.Errorf("MCP configuration is managed by the system administrator")
+		}
+		service.IsBuiltin = true
+	}
+
 	// Stdio transport is disabled for security reasons
 	if service.TransportType == types.MCPTransportStdio {
 		return fmt.Errorf("stdio transport is disabled for security reasons; please use SSE or HTTP Streamable transport instead")
@@ -134,7 +141,7 @@ func (s *mcpServiceService) UpdateMCPService(
 	}
 
 	// Builtin MCP services cannot be updated
-	if existing.IsBuiltin {
+	if existing.IsBuiltin && !(types.ManagedRuntimeEnabled() && types.IsSystemAdminFromContext(ctx)) {
 		return fmt.Errorf("builtin MCP services cannot be updated")
 	}
 
@@ -355,14 +362,14 @@ func (s *mcpServiceService) DeleteMCPService(ctx context.Context, tenantID uint6
 	}
 
 	// Builtin MCP services cannot be deleted
-	if existing.IsBuiltin {
+	if existing.IsBuiltin && !(types.ManagedRuntimeEnabled() && types.IsSystemAdminFromContext(ctx)) {
 		return fmt.Errorf("builtin MCP services cannot be deleted")
 	}
 
 	// Close client connection
 	s.mcpManager.CloseClient(id)
 
-	if err := s.mcpServiceRepo.Delete(ctx, tenantID, id); err != nil {
+	if err := s.mcpServiceRepo.Delete(ctx, existing.TenantID, id); err != nil {
 		logger.GetLogger(ctx).Errorf("Failed to delete MCP service: %v", err)
 		return fmt.Errorf("failed to delete MCP service: %w", err)
 	}
@@ -528,7 +535,7 @@ func (s *mcpServiceService) UpdateMCPCredentials(
 	if existing == nil {
 		return nil, fmt.Errorf("MCP service not found")
 	}
-	if existing.IsBuiltin {
+	if existing.IsBuiltin && !(types.ManagedRuntimeEnabled() && types.IsSystemAdminFromContext(ctx)) {
 		return nil, fmt.Errorf("builtin MCP services cannot have credentials modified")
 	}
 
@@ -578,7 +585,7 @@ func (s *mcpServiceService) ClearMCPCredential(
 	if existing == nil {
 		return fmt.Errorf("MCP service not found")
 	}
-	if existing.IsBuiltin {
+	if existing.IsBuiltin && !(types.ManagedRuntimeEnabled() && types.IsSystemAdminFromContext(ctx)) {
 		return fmt.Errorf("builtin MCP services cannot have credentials modified")
 	}
 	if existing.AuthConfig == nil {

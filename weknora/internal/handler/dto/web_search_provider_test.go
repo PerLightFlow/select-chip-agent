@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -51,4 +52,44 @@ func TestWebSearchProviderResponse_ViewerStripsIntegrationDetail(t *testing.T) {
 func TestWebSearchProviderResponse_NilSafe(t *testing.T) {
 	assert.Nil(t, NewWebSearchProviderResponse(adminContext(), nil))
 	assert.Equal(t, []*WebSearchProviderResponse{}, NewWebSearchProviderResponses(adminContext(), nil))
+}
+
+func TestWebSearchProviderResponse_ManagedOwnerCannotReadCentralCredentials(t *testing.T) {
+	t.Setenv("SOLEX_MANAGED_RUNTIME", "true")
+	e := &types.WebSearchProviderEntity{
+		ID: "central-search", TenantID: 42,
+		Parameters: types.WebSearchProviderParameters{
+			APIKey:      "never-return-api-key",
+			ProxyURL:    "http://proxy-user:proxy-password@proxy.example.com:8080",
+			ExtraConfig: map[string]string{"token": "provider-private-token"},
+		},
+	}
+	resp := NewWebSearchProviderResponse(ownerContext(), e)
+	assert.Empty(t, resp.Parameters.ProxyURL)
+	assert.Nil(t, resp.Parameters.ExtraConfig)
+	assert.True(t, resp.Credentials["api_key"].Configured)
+	body, err := json.Marshal(resp)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(body), "proxy-password")
+	assert.NotContains(t, string(body), "provider-private-token")
+	assert.NotContains(t, string(body), "never-return-api-key")
+	// Redacting the public response must not corrupt runtime configuration.
+	assert.Equal(t, "provider-private-token", e.Parameters.ExtraConfig["token"])
+
+	admin := context.WithValue(ownerContext(), types.SystemAdminContextKey, true)
+	adminResponse := NewWebSearchProviderResponse(admin, e)
+	assert.Equal(t, e.Parameters.ProxyURL, adminResponse.Parameters.ProxyURL)
+	assert.Equal(t, e.Parameters.ExtraConfig, adminResponse.Parameters.ExtraConfig)
+}
+
+func TestWebSearchProviderResponse_UnmanagedOwnerRetainsWorkspaceDetail(t *testing.T) {
+	t.Setenv("SOLEX_MANAGED_RUNTIME", "false")
+	e := &types.WebSearchProviderEntity{
+		Parameters: types.WebSearchProviderParameters{
+			ProxyURL: "http://own-proxy.example.com:8080", ExtraConfig: map[string]string{"region": "local"},
+		},
+	}
+	resp := NewWebSearchProviderResponse(ownerContext(), e)
+	assert.Equal(t, e.Parameters.ProxyURL, resp.Parameters.ProxyURL)
+	assert.Equal(t, e.Parameters.ExtraConfig, resp.Parameters.ExtraConfig)
 }

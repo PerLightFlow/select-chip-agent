@@ -155,6 +155,9 @@ func (s *knowledgeBaseService) CreateKnowledgeBase(ctx context.Context,
 		kb.CreatorID = uid
 	}
 	kb.EnsureDefaults()
+	if err := s.applyManagedKnowledgeBaseModels(ctx, kb); err != nil {
+		return nil, err
+	}
 	applyTenantDefaultStorageProvider(ctx, kb)
 	if err := s.applyAndValidateStorageBackend(ctx, kb); err != nil {
 		return nil, err
@@ -605,6 +608,9 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 		return nil, err
 	}
 
+	if err := s.normalizeManagedKnowledgeBaseUpdate(ctx, kb, config, vlmConfig); err != nil {
+		return nil, err
+	}
 	changedFields := make([]string, 0, 3)
 	profileWasEnabled := kb.ProfileConfig.IsEnabled()
 	if kb.Name != name {
@@ -1391,6 +1397,18 @@ func (s *knowledgeBaseService) SetEmbeddingModel(ctx context.Context, id string,
 		return err
 	}
 
+	if managedModelRestricted(ctx) {
+		if kb.EmbeddingModelID != "" && kb.EmbeddingModelID != modelID {
+			return apperrors.NewForbiddenError("Embedding 模型由系统管理员统一管理")
+		}
+		if kb.EmbeddingModelID == "" {
+			var err error
+			modelID, err = managedModelBinding(ctx, s.modelService, modelID, types.ModelTypeEmbedding)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	// Update the knowledge base's embedding model
 	kb.EmbeddingModelID = modelID
 	kb.UpdatedAt = time.Now()
@@ -1566,6 +1584,26 @@ func (s *knowledgeBaseService) DuplicateKnowledgeBase(
 	targetKB.CreatorName = ""
 	targetKB.EnsureDefaults()
 	targetKB.Normalize()
+	if managedModelRestricted(ctx) {
+		// This operation copies settings only, never vectors or documents.
+		// New empty copies can safely inherit today's shared defaults.
+		targetKB.EmbeddingModelID = ""
+		targetKB.SummaryModelID = ""
+		targetKB.VectorStoreID = nil
+		targetKB.StorageBackendID = nil
+		targetKB.StorageConfig = types.StorageConfig{}
+		targetKB.ImageProcessingConfig.ModelID = ""
+		targetKB.VLMConfig.ModelID = ""
+		clearLegacyVLMFields(&targetKB.VLMConfig)
+		targetKB.ASRConfig.ModelID = ""
+		if err := s.applyManagedKnowledgeBaseModels(ctx, targetKB); err != nil {
+			return nil, err
+		}
+		applyTenantDefaultStorageProvider(ctx, targetKB)
+		if err := s.applyAndValidateStorageBackend(ctx, targetKB); err != nil {
+			return nil, err
+		}
+	}
 
 	if targetKB.HasVectorStore() {
 		if err := s.validateVectorStoreBinding(ctx, tenantID, *targetKB.VectorStoreID); err != nil {

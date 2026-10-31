@@ -51,6 +51,7 @@ export interface DeploymentCapability {
 }
 
 export interface DeploymentCapabilitiesResponse {
+  managed_runtime?: boolean
   edition: string
   capabilities: Record<string, DeploymentCapability>
 }

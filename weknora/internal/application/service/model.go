@@ -82,7 +82,11 @@ func (s *modelService) resolveWeKnoraCloudCredentials(ctx context.Context, param
 	if s.tenantService == nil {
 		return
 	}
-	creds := s.tenantService.GetWeKnoraCloudCredentials(ctx)
+	credentialsCtx := ctx
+	if types.ManagedRuntimeEnabled() {
+		credentialsCtx = types.WithExecutionTenant(ctx, types.ManagedRuntimeTenantID())
+	}
+	creds := s.tenantService.GetWeKnoraCloudCredentials(credentialsCtx)
 	if creds == nil {
 		return
 	}
@@ -99,6 +103,12 @@ func (s *modelService) resolveWeKnoraCloudCredentials(ctx context.Context, param
 // For local models, it initiates an asynchronous download process
 // Remote models are immediately set to active status
 func (s *modelService) CreateModel(ctx context.Context, model *types.Model) error {
+	if err := requireManagedModelAdministrator(ctx); err != nil {
+		return err
+	}
+	if types.ManagedRuntimeEnabled() {
+		model.IsBuiltin = true
+	}
 	logger.Infof(ctx, "Creating model: %s, type: %s, source: %s", model.Name, model.Type, model.Source)
 
 	// Handle remote models (e.g., OpenAI, Azure)
@@ -146,6 +156,9 @@ func (s *modelService) CreateModel(ctx context.Context, model *types.Model) erro
 // An active local model is already present, so the copy does not download it
 // again. A local model that is still downloading or failed starts a pull.
 func (s *modelService) CopyModel(ctx context.Context, sourceID, displayName string) (*types.Model, error) {
+	if err := requireManagedModelAdministrator(ctx); err != nil {
+		return nil, err
+	}
 	sourceID = strings.TrimSpace(sourceID)
 	if sourceID == "" {
 		return nil, apperrors.NewBadRequestError("model ID cannot be empty")
@@ -185,6 +198,9 @@ func (s *modelService) CopyModel(ctx context.Context, sourceID, displayName stri
 		Source:      source.Source,
 		Description: source.Description,
 		Parameters:  params,
+	}
+	if types.ManagedRuntimeEnabled() {
+		model.IsBuiltin = true
 	}
 	logger.Infof(ctx, "Copying model %s as %q", source.ID, displayName)
 
@@ -268,7 +284,7 @@ func (s *modelService) GetModelByID(ctx context.Context, id string) (*types.Mode
 	}
 
 	// Check if model exists
-	if model == nil {
+	if model == nil || (managedModelRestricted(ctx) && !model.IsBuiltin) {
 		logger.Error(ctx, "Model not found")
 		return nil, ErrModelNotFound
 	}
@@ -309,6 +325,15 @@ func (s *modelService) ListModels(ctx context.Context) ([]*types.Model, error) {
 		})
 		return nil, err
 	}
+	if managedModelRestricted(ctx) {
+		shared := make([]*types.Model, 0, len(models))
+		for _, model := range models {
+			if model != nil && model.IsBuiltin {
+				shared = append(shared, model)
+			}
+		}
+		models = shared
+	}
 	// GetModelByID is left alone: its result is written back by UpdateModel,
 	// and this overlay must never be persisted.
 	if settings := s.workspaceDefaultSettings(ctx, tenantID); settings != nil {
@@ -322,6 +347,9 @@ func (s *modelService) ListModels(ctx context.Context) ([]*types.Model, error) {
 // workspaceDefaultSettings prefers the tenant the request already loaded and
 // reads it from storage for background contexts that carry only the ID.
 func (s *modelService) workspaceDefaultSettings(ctx context.Context, tenantID uint64) *types.DefaultSettings {
+	if types.ManagedRuntimeEnabled() {
+		tenantID = types.ManagedRuntimeTenantID()
+	}
 	if tenant, ok := types.TenantInfoFromContext(ctx); ok && tenant.ID == tenantID {
 		return tenant.DefaultSettings
 	}
@@ -337,6 +365,9 @@ func (s *modelService) workspaceDefaultSettings(ctx context.Context, tenantID ui
 
 // UpdateModel updates an existing model in the repository
 func (s *modelService) UpdateModel(ctx context.Context, model *types.Model) error {
+	if err := requireManagedModelAdministrator(ctx); err != nil {
+		return err
+	}
 	logger.Info(ctx, "Start updating model")
 	logger.Infof(ctx, "Updating model ID: %s, name: %s", model.ID, model.Name)
 
@@ -384,6 +415,9 @@ func (s *modelService) UpdateModel(ctx context.Context, model *types.Model) erro
 func (s *modelService) UpdateModelCredentials(
 	ctx context.Context, id string, apiKey, appSecret *string,
 ) (*types.Model, error) {
+	if err := requireManagedModelAdministrator(ctx); err != nil {
+		return nil, err
+	}
 	tenantID := types.MustTenantIDFromContext(ctx)
 	existing, err := s.repo.GetByID(ctx, tenantID, id)
 	if err != nil {
@@ -422,6 +456,9 @@ func (s *modelService) UpdateModelCredentials(
 
 // ClearModelCredential removes a single credential field. Idempotent.
 func (s *modelService) ClearModelCredential(ctx context.Context, id, field string) error {
+	if err := requireManagedModelAdministrator(ctx); err != nil {
+		return err
+	}
 	tenantID := types.MustTenantIDFromContext(ctx)
 	existing, err := s.repo.GetByID(ctx, tenantID, id)
 	if err != nil {
@@ -465,6 +502,9 @@ func (s *modelService) ClearModelCredential(ctx context.Context, id, field strin
 
 // DeleteModel removes a model from the repository
 func (s *modelService) DeleteModel(ctx context.Context, id string) error {
+	if err := requireManagedModelAdministrator(ctx); err != nil {
+		return err
+	}
 	logger.Info(ctx, "Start deleting model")
 	logger.Infof(ctx, "Deleting model ID: %s", id)
 
@@ -641,7 +681,7 @@ func (s *modelService) GetEmbeddingModelForTenant(ctx context.Context, modelId s
 		return nil, err
 	}
 
-	if model == nil {
+	if model == nil || (managedModelRestricted(ctx) && !model.IsBuiltin) {
 		logger.Error(ctx, "Model not found for specified tenant")
 		return nil, ErrModelNotFound
 	}
@@ -719,7 +759,7 @@ func (s *modelService) GetChatModel(ctx context.Context, modelId string) (chat.C
 		return nil, err
 	}
 
-	if model == nil {
+	if model == nil || (managedModelRestricted(ctx) && !model.IsBuiltin) {
 		logger.Error(ctx, "Chat model not found")
 		return nil, ErrModelNotFound
 	}
@@ -757,7 +797,7 @@ func (s *modelService) GetVLMModel(ctx context.Context, modelId string) (vlm.VLM
 		return nil, err
 	}
 
-	if model == nil {
+	if model == nil || (managedModelRestricted(ctx) && !model.IsBuiltin) {
 		return nil, ErrModelNotFound
 	}
 
@@ -794,7 +834,7 @@ func (s *modelService) GetASRModel(ctx context.Context, modelId string) (asr.ASR
 		return nil, err
 	}
 
-	if model == nil {
+	if model == nil || (managedModelRestricted(ctx) && !model.IsBuiltin) {
 		return nil, ErrModelNotFound
 	}
 

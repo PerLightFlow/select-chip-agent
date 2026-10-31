@@ -259,6 +259,7 @@ func NewRouter(params RouterParams) *gin.Engine {
 		// apiKeyGroup helpers. Must be attached BEFORE the Register* calls
 		// so that sub-groups inherit it.
 		v1.Use(rbacGuards.apiKeyAuthorizer.Middleware())
+		v1.Use(middleware.ManagedRuntime())
 
 		RegisterAuthRoutes(v1, params.AuthHandler, rbacGuards)
 		RegisterTenantRoutes(v1, params.TenantHandler, params.TenantMemberHandler, params.TenantInvitationHandler, params.AuditLogHandler, rbacGuards)

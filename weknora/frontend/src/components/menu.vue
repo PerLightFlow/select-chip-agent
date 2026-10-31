@@ -288,6 +288,7 @@ import { useMenuStore } from '@/stores/menu';
 import { useSessionActivityStore } from '@/stores/sessionActivity';
 import { useAuthStore } from '@/stores/auth';
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities';
+import { useManagedRuntime } from '@/composables/useManagedRuntime';
 import { TOOLBOX_ITEMS, canAccessToolboxSection } from '@/config/toolbox';
 import BrowserIcon from '@/components/icons/BrowserIcon.vue';
 import { useBrowserConnectionStore } from '@/stores/browserConnection';
@@ -337,7 +338,8 @@ const { entries: sessionActivityEntries, unread: sessionUnread } = storeToRefs(s
 let sessionActivityTimer: ReturnType<typeof setInterval> | undefined;
 const authStore = useAuthStore();
 const deploymentCapabilities = useDeploymentCapabilitiesStore();
-const toolboxPreview = computed(() => TOOLBOX_ITEMS.filter((item) => canAccessToolboxSection(item.key, {
+const { canConfigureSection } = useManagedRuntime();
+const toolboxPreview = computed(() => TOOLBOX_ITEMS.filter((item) => canConfigureSection(item.key) && canAccessToolboxSection(item.key, {
     currentTenantRole: authStore.currentTenantRole,
     canAccessAllTenants: authStore.canAccessAllTenants,
     hasRole: (role) => authStore.hasRole(role),

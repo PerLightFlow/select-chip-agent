@@ -19,7 +19,7 @@ const compiled = ts.transpileModule(script, { compilerOptions: { module: ts.Modu
 
 async function fixture(
   update: () => Promise<void> = async () => {}, admin = true,
-  options: { query?: Record<string, string>; draft?: unknown } = {},
+  options: { query?: Record<string, string>; draft?: unknown; managed?: boolean; systemAdmin?: boolean } = {},
 ) {
   const calls: Array<{ id: string; data: unknown }> = []
   const errors: string[] = []
@@ -55,7 +55,8 @@ async function fixture(
       }
       if (name === 'vue') return require('vue')
       if (name === 'vue-i18n') return { useI18n: () => ({ t: (key: string) => key }) }
-      if (name === '@/stores/auth') return { useAuthStore: () => ({ hasRole: () => admin }) }
+      if (name === '@/stores/auth') return { useAuthStore: () => ({ hasRole: () => admin, isSystemAdmin: options.systemAdmin === true }) }
+      if (name === '@/stores/deploymentCapabilities') return { useDeploymentCapabilitiesStore: () => ({ managedRuntime: options.managed === true }) }
       if (name === '@/components/settings/useConfirmDelete') return { useConfirmDelete: () => (data: unknown) => deletes.push(data) }
       if (name === 'tdesign-vue-next') return { MessagePlugin: {
         success() {}, error: (message: string) => errors.push(message), warning: (message: string) => warnings.push(message),
@@ -268,4 +269,17 @@ test('a service link opens that service and drops the query', async () => {
     assert.equal(missing.vm.dialogVisible, false)
     assert.deepEqual(missing.warnings, ['mcpSettings.toasts.linkedServiceMissing'])
   } finally { missing.close() }
+})
+
+
+test('managed system administrators can toggle and delete shared builtin services without workspace admin membership', async () => {
+  const f = await fixture(async () => {}, false, { managed: true, systemAdmin: true })
+  try {
+    f.service.is_builtin = true
+    await f.vm.handleToggleEnabled(f.service)
+    assert.equal(f.calls.length, 1)
+    assert.equal(f.service.enabled, false)
+    f.vm.handleDelete(f.service)
+    assert.equal(f.deletes.length, 1)
+  } finally { f.close() }
 })

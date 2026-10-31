@@ -96,6 +96,10 @@ func (h *TenantHandler) updateTenantDefaultSettingsInternal(c *gin.Context) {
 			_ = c.Error(errors.NewBadRequestError(fmt.Sprintf("%s: model not found", slot.field)))
 			return
 		}
+		if types.ManagedRuntimeEnabled() && !model.IsBuiltin {
+			_ = c.Error(errors.NewBadRequestError("managed defaults must use shared system models"))
+			return
+		}
 		if !model.SupportsType(slot.want) {
 			_ = c.Error(errors.NewBadRequestError(fmt.Sprintf("%s must be a %s model", slot.field, slot.want)))
 			return

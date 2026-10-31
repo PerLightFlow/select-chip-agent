@@ -1,3 +1,4 @@
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
@@ -64,6 +65,7 @@ type EditorResourceKey =
  * 写操作后显式 `ensureX(true)` 或 `invalidate()`。
  */
 export const useEditorResourcesStore = defineStore('editorResources', () => {
+  const { managed } = useManagedRuntime()
   const storageConfig = ref<Awaited<ReturnType<typeof getStorageEngineConfig>>['data'] | null>(null)
   const storageStatus = ref<StorageEngineStatusItem[]>([])
   const storageAllowedProviders = ref<string[]>([])
@@ -89,7 +91,7 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
         // to pick a usable provider. A permission rejection on the config
         // call must therefore degrade to "no admin config", not break the
         // whole editor dependency chain (#2991).
-        getStorageEngineConfig().catch((error: unknown) => {
+        (managed.value ? Promise.resolve(null) : getStorageEngineConfig()).catch((error: unknown) => {
           if (isStorageConfigDenied(error)) return null
           throw error
         }),
@@ -134,7 +136,7 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
       // id is part of the agent config this caller already holds. The backend
       // re-reads it from the agent, so what is sent here only has to be
       // non-empty when the agent actually has one.
-      if (!scope.configId) {
+      if (!scope.configId && !managed.value) {
         return { key: scope.key, available: false, list: [] as SkillInfo[] }
       }
       try {
@@ -328,9 +330,9 @@ export const useEditorResourcesStore = defineStore('editorResources', () => {
       ensureAgentTypePresets(force),
       ensureAgentTools(force),
       ensurePromptTemplates(force),
-      ensureStorageEngine(force),
+      managed.value ? Promise.resolve() : ensureStorageEngine(force),
       ensurePlaceholders(force),
-      ensureTenantRetrievalConfig(force),
+      managed.value ? Promise.resolve() : ensureTenantRetrievalConfig(force),
     ])
   }
 

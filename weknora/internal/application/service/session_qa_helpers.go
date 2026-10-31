@@ -142,6 +142,14 @@ func (s *sessionService) resolveChatModelID(
 	knowledgeBaseIDs []string,
 	knowledgeIDs []string,
 ) (string, uint64, error) {
+	if managedModelRestricted(ctx) || (types.ManagedRuntimeEnabled() && req.CustomAgent != nil && strings.TrimSpace(req.CustomAgent.Config.ModelID) == "") {
+		model, err := managedDefaultModel(ctx, s.modelService, types.ModelTypeKnowledgeQA)
+		if err != nil {
+			return "", 0, err
+		}
+		tenantID, _ := types.TenantIDFromContext(ctx)
+		return model.ID, tenantID, nil
+	}
 	summaryModelID := req.SummaryModelID
 	customAgent := req.CustomAgent
 	tenantID, _ := types.TenantIDFromContext(ctx)
@@ -225,6 +233,11 @@ func (s *sessionService) applyAgentOverridesToChatManage(
 		return
 	}
 
+	if managedModelRestricted(ctx) {
+		copy := *customAgent
+		customAgent = &copy
+		s.applyManagedAgentModelDefaults(ctx, &customAgent.Config)
+	}
 	// Ensure defaults are set
 	customAgent.EnsureDefaults()
 

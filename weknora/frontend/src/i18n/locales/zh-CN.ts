@@ -1,4 +1,5 @@
 export default {
+  managedRuntime: {"title": "使用系统配置", "description": "模型和运行环境由系统管理员统一配置。", "unavailable": "系统服务尚未配置，请联系管理员。"},
   solex: {"workspace": "工作空间", "recentChats": "最近对话", "heroEyebrow": "SOLEX · 团队知识与智能调研", "heroTitle": "从一个问题，走向清晰答案。", "heroDescription": "连接团队知识，梳理需求、探索资料，让每一次提问都有据可循。", "composerHint": "从描述你的想法开始，也可以选择知识库或智能体。", "admin": "SOLEX 管理员", "account": "账户与设置"},
   modelCatalog: {
     "title": "模型目录",

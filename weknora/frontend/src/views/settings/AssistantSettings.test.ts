@@ -68,6 +68,7 @@ async function fixture() {
       success: () => notifications.push('success'), error: () => notifications.push('error'),
     } },
     '@/stores/auth': { useAuthStore: () => auth },
+    '@/composables/useManagedRuntime': { useManagedRuntime: () => ({ managed: vue.ref(false) }) },
     '@/stores/assistant': stores,
     '@/api/assistant': api,
   }).default

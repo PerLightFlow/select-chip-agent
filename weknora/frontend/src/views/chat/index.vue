@@ -231,6 +231,8 @@
     </t-dialog>
 </template>
 <script setup>
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
+
 import ChildAgentTabBar from './components/ChildAgentTabBar.vue';
 import ChildAgentStream from './components/ChildAgentStream.vue';
 import { createChildAgentTabs, childAgentTabsKey, childAgentTaskLookupKey, findChildAgentTask } from '@/composables/useChildAgentTabs';
@@ -303,6 +305,7 @@ import { createBackgroundWorkPoller, mergeBackgroundWork } from '@/utils/backgro
 import { providePromptDock } from '@/composables/usePromptDock';
 import { collectSessionArtifacts, markSessionArtifactDeleted } from '@/utils/sessionArtifacts';
 import { isCollectingSkillArtifacts } from '@/utils/skillArtifacts';
+const { managed: managedRuntime } = useManagedRuntime()
 const inheritedChildTabs = inject(childAgentTabsKey, null);
 const childTabs = inheritedChildTabs || createChildAgentTabs();
 provide(childAgentTabsKey, childTabs);
@@ -1731,8 +1734,8 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
         agent_source_tenant_id: selectedAgentSourceTenantId,
         web_search_enabled: webSearchEnabled,
         local_browser_enabled: !props.embeddedMode && agentEnabled && useSettingsStoreInstance.isLocalBrowserEnabled && !useBrowserConnectionStore().knownOffline,
-        summary_model_id: modelId,
-        reasoning_effort: reasoningEffort,
+        summary_model_id: managedRuntime.value ? undefined : modelId,
+        reasoning_effort: managedRuntime.value ? undefined : reasoningEffort,
         mcp_service_ids: requestMcpServiceIds,
         skill_names: requestSkillNames,
         tag_ids: tagIds,

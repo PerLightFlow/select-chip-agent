@@ -6,6 +6,7 @@
     <div ref="contentWrapperRef" class="content-wrapper" :class="{ 'content-wrapper--prompts': currentSection === 'prompts' }">
       <!-- 基础设置 -->
       <div v-show="currentSection === 'basic'" class="section">
+        <t-alert v-if="managedRuntime" theme="info" :message="$t('managedRuntime.description')" style="margin-bottom: 20px" />
         <div class="section-header">
           <div class="section-header-title">
             <h2>{{ $t('agent.editor.basicInfo') }}</h2>
@@ -547,7 +548,7 @@
       </div>
 
       <!-- 模型配置 -->
-      <div v-show="currentSection === 'model'" class="section">
+      <div v-if="!managedRuntime" v-show="currentSection === 'model'" class="section">
         <div class="section-header">
           <h2>{{ $t('agent.editor.modelConfig') }}</h2>
           <p class="section-description">{{ $t('agent.editor.modelConfigDesc') }}</p>
@@ -728,7 +729,7 @@
       </div>
 
       <!-- 附件上传 -->
-      <div v-show="currentSection === 'multimodal'" class="section">
+      <div v-if="!managedRuntime" v-show="currentSection === 'multimodal'" class="section">
         <div class="section-header">
           <h2>{{ $t('agentEditor.imageUpload.sectionTitle') }}</h2>
           <p class="section-description">{{ $t('agentEditor.imageUpload.sectionDesc') }}</p>
@@ -1041,7 +1042,7 @@
               </div>
             </div>
 
-            <div v-if="formData.config.question_suggestions.follow_ups.mode !== 'knowledge'"
+            <div v-if="!managedRuntime && formData.config.question_suggestions.follow_ups.mode !== 'knowledge'"
               class="setting-row">
               <div class="setting-info">
                 <label>{{ $t('agentEditor.questionSuggestions.model') }}</label>
@@ -1279,7 +1280,7 @@
           </div>
 
           <!-- 授权等待超时：对话中触发 OAuth 授权时的等待秒数 -->
-          <div v-if="mcpSelectionMode !== 'none'" class="setting-row">
+          <div v-if="!managedRuntime && mcpSelectionMode !== 'none'" class="setting-row">
             <div class="setting-info">
               <label>{{ $t('agentEditor.mcp.authWaitTimeout') }}</label>
               <p class="desc">{{ $t('agentEditor.mcp.authWaitTimeoutDesc') }}</p>
@@ -1291,7 +1292,7 @@
           </div>
 
           <!-- 执行权限上限：修改数据的工具（MCP、Wiki 写入）能否不经确认直接执行 -->
-          <div class="setting-row">
+          <div v-if="!managedRuntime" class="setting-row">
             <div class="setting-info">
               <label>{{ $t('agentEditor.mcp.accessLevel') }}</label>
               <p class="desc">{{ $t('agentEditor.mcp.accessLevelDesc') }}</p>
@@ -1314,7 +1315,7 @@
         </div>
 
         <div class="settings-group">
-          <div v-if="!hostOnly" class="setting-row">
+          <div v-if="!managedRuntime && !hostOnly" class="setting-row">
             <div class="setting-info">
               <label>{{ $t('agent.editor.sandboxBackend') }}</label>
               <p class="desc">{{ $t('agent.editor.sandboxBackendHint') }}</p>
@@ -1377,10 +1378,10 @@
                 <t-radio-button value="selected" :disabled="!canEnableSkills">{{ $t('agent.editor.skillsSelected') }}</t-radio-button>
                 <t-radio-button value="none">{{ $t('agent.editor.skillsNone') }}</t-radio-button>
               </t-radio-group>
-              <p v-if="!hasSandboxSelected && sandboxConfigOptions.length > 1" class="desc empty-hint">
+              <p v-if="!managedRuntime && !hasSandboxSelected && sandboxConfigOptions.length > 1" class="desc empty-hint">
                 {{ $t('agent.editor.skillsNeedSandbox') }}
               </p>
-              <p v-else-if="hasSandboxSelected && skillCatalog.length === 0" class="desc empty-hint">
+              <p v-else-if="!managedRuntime && hasSandboxSelected && skillCatalog.length === 0" class="desc empty-hint">
                 <span>{{ $t('agent.editor.noSkillsAvailable') }}</span>
                 <a
                   v-if="canInstallSkills"
@@ -1394,6 +1395,13 @@
             </div>
           </div>
 
+          <div v-if="managedRuntime && skillsSelectionMode === 'selected'" class="setting-row">
+            <t-select v-model="formData.config.selected_skills" multiple filterable
+              :placeholder="$t('agent.editor.selectSkillsDesc')">
+              <t-option v-for="skill in editorResources.skills" :key="skill.name"
+                :value="skill.name" :label="skill.name" />
+            </t-select>
+          </div>
           <div v-if="showCatalogSkillList" class="setting-row setting-row-vertical">
             <div class="setting-control setting-control-full">
               <t-checkbox-group
@@ -1622,7 +1630,7 @@
           </div>
 
           <!-- 网络搜索最大结果数 -->
-          <div v-if="formData.config.web_search_enabled" class="setting-row">
+          <div v-if="!managedRuntime && formData.config.web_search_enabled" class="setting-row">
             <div class="setting-info">
               <label>{{ $t('agent.editor.webSearchProvider') }}</label>
               <p class="desc">{{ $t('agentEditor.desc.webSearchProvider') }}</p>
@@ -1684,7 +1692,7 @@
 
       <!-- 检索策略（仅普通模式且有知识库能力时显示；Agent 模式的 search_knowledge
            使用全局检索配置，这里的设置对它不生效） -->
-      <div v-show="currentSection === 'retrieval' && hasKnowledgeBase && !isAgentMode" class="section">
+      <div v-if="!managedRuntime" v-show="currentSection === 'retrieval' && hasKnowledgeBase && !isAgentMode" class="section">
         <div class="section-header">
           <h2>{{ $t('agent.editor.retrievalStrategy') }}</h2>
           <p class="section-description">{{ $t('agentEditor.desc.retrievalSection') }}</p>
@@ -1867,10 +1875,13 @@
     />
   </SettingDrawer>
 
-  <AgentCreateContextualGuide :when="visible && editorMode === 'create'" :is-agent-mode="isAgentMode" />
+  <AgentCreateContextualGuide :when="!managedRuntime && visible && editorMode === 'create'" :is-agent-mode="isAgentMode" />
 </template>
 
 <script setup lang="ts">
+import { managedAgentConfig } from '@/config/managedRuntime'
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
+
 import { useAssistantDataChange } from '@/utils/assistantDataChange';
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
@@ -1960,6 +1971,7 @@ import {
 } from '@/utils/reasoningEffort';
 
 // File extensions offered in the agent-level chat attachment parsing policy.
+const { managed: managedRuntime } = useManagedRuntime()
 const CHAT_PARSER_EXTENSIONS = [
   'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'epub', 'mhtml',
   'txt', 'md', 'markdown', 'csv', 'json', 'xml', 'html', 'yaml', 'yml', 'log',
@@ -2057,6 +2069,7 @@ const clearFieldHighlight = () => {
 };
 
 const applyInitialFieldHighlight = async (field: string) => {
+  if (managedRuntime.value && field !== 'allowed_tools') return;
   if (!VALID_HIGHLIGHT_FIELDS.includes(field as AgentNotReadyReasonKey)) return;
 
   const targetField = field as AgentNotReadyReasonKey;
@@ -2176,11 +2189,11 @@ const hostOnly = computed(() => hostSkillsOnly(
 const skillTargetId = computed(() =>
   hostOnly.value ? HOST_SKILL_TARGET_ID : (formData.value.config.sandbox_config_id || ''),
 );
-const hasSandboxSelected = computed(() => !!skillTargetId.value);
+const hasSandboxSelected = computed(() => managedRuntime.value ? editorResources.skillsAvailable : !!skillTargetId.value);
 const canEnableSkills = computed(() =>
-  hostOnly.value || hasSandboxSelected.value || namedSandboxConfigs().length === 1,
+  managedRuntime.value ? editorResources.skillsAvailable : (hostOnly.value || hasSandboxSelected.value || namedSandboxConfigs().length === 1),
 );
-const canInstallSkills = computed(() => authStore.hasRole('admin'));
+const canInstallSkills = computed(() => !managedRuntime.value && authStore.hasRole('admin'));
 
 type CatalogSkillRow = SkillCatalogItem & {
   installed: boolean
@@ -2215,7 +2228,7 @@ const catalogSkillRows = computed<CatalogSkillRow[]>(() => {
 })
 
 const showCatalogSkillList = computed(() =>
-  skillsSelectionMode.value !== 'none'
+  !managedRuntime.value && skillsSelectionMode.value !== 'none'
   && hasSandboxSelected.value
   && catalogSkillRows.value.length > 0,
 )
@@ -2385,6 +2398,10 @@ function pruneSelectedSkills() {
 }
 
 async function syncInstalledSkills(force = false) {
+  if (managedRuntime.value) {
+    await editorResources.ensureSkills('', undefined, force)
+    return
+  }
   autoBindSoleSandbox()
   const configId = skillTargetId.value
   // The editor only edits this workspace's agents, so the sandbox config is
@@ -2856,7 +2873,7 @@ const navItems = computed(() => {
   if (editorMode.value === 'edit' && editorAgent.value?.id && !editorAgent.value?.is_builtin && !authStore.isLiteMode) {
     items.push({ key: 'share', icon: 'share', label: t('knowledgeEditor.sidebar.share') });
   }
-  return items;
+  return managedRuntime.value ? items.filter(item => !['model', 'multimodal', 'retrieval'].includes(item.key)) : items;
 });
 
 // 左侧导航分组（参考「头像-设置」的分组方式）
@@ -3619,7 +3636,7 @@ watch(() => props.visible, async (val) => {
     editorInitializing.value = true;
     try {
     savedAgent.value = null;
-    currentSection.value = resolveEditorSection(props.initialSection);
+    currentSection.value = managedRuntime.value && ['model', 'multimodal', 'retrieval'].includes(resolveEditorSection(props.initialSection)) ? 'basic' : resolveEditorSection(props.initialSection);
     // 先加载依赖数据（包括默认配置）
     await loadDependencies();
     if (generation !== editorInitializationGeneration || !props.visible) return;
@@ -4167,7 +4184,7 @@ const loadDependencies = async () => {
       chatResources.ensureModels(),
       chatResources.ensureKnowledgeBases(),
       chatResources.ensureWebSearchProviders(),
-      chatResources.ensureSandboxConfigs(),
+      managedRuntime.value ? Promise.resolve() : chatResources.ensureSandboxConfigs(),
       editorResources.prefetchAgentEditorDeps(),
     ]);
 
@@ -5082,14 +5099,14 @@ const handleSave = async () => {
     }
   }
 
-  if (!formData.value.config.model_id) {
+  if (!managedRuntime.value && !formData.value.config.model_id) {
     MessagePlugin.error(t('agent.editor.modelRequired'));
     currentSection.value = 'model';
     return;
   }
 
   // 校验 VLM 模型（当图片上传启用时必填）
-  if (formData.value.config.image_upload_enabled && !formData.value.config.vlm_model_id) {
+  if (!managedRuntime.value && formData.value.config.image_upload_enabled && !formData.value.config.vlm_model_id) {
     MessagePlugin.error(t('agentEditor.imageUpload.vlmModelRequired'));
     currentSection.value = 'multimodal';
     return;
@@ -5111,7 +5128,7 @@ const handleSave = async () => {
 
   if (hostOnly.value) formData.value.config.sandbox_config_id = ''
 
-  const payload = { ...formData.value, config: serializeAgentPrompts({ ...formData.value.config, allowed_tools: allowedToolsToSave() }, promptTemplates.value) };
+  const payload = { ...formData.value, config: managedAgentConfig(serializeAgentPrompts({ ...formData.value.config, allowed_tools: allowedToolsToSave() }, promptTemplates.value), managedRuntime.value) };
   saving.value = true;
   try {
     if (editorMode.value === 'create') {

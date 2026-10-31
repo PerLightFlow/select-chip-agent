@@ -247,6 +247,11 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 		request.Images[i].Caption = ""
 	}
 
+	if types.ManagedRuntimeEnabled() && !types.IsSystemAdminFromContext(ctx) {
+		request.SummaryModelID = ""
+		request.ReasoningEffort = ""
+	}
+
 	// Log request details
 	if requestJSON, err := json.Marshal(request); err == nil {
 		logger.Infof(ctx, "[%s] Request: session_id=%s, request=%s",
@@ -363,8 +368,8 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 			asrModelID = customAgent.Config.ASRModelID
 		}
 
-		// Resolve the agent's chat parser engine from attachment file types
-		if customAgent != nil {
+		// In managed mode the workspace parser defaults remain authoritative.
+		if customAgent != nil && (!types.ManagedRuntimeEnabled() || types.IsSystemAdminFromContext(ctx)) {
 			for _, att := range request.AttachmentUploads {
 				ext := strings.ToLower(filepath.Ext(att.FileName))
 				if engine := customAgent.Config.ResolveChatParserEngine(ext); engine != "" {
@@ -664,7 +669,7 @@ func (h *Handler) resolveAgent(
 		if err == nil && agent != nil {
 			logger.Infof(ctx, "Using own agent: ID=%s, Name=%s, AgentMode=%s",
 				agent.ID, agent.Name, agent.Config.AgentMode)
-			return agent, 0, false
+			return h.withManagedAttachmentModels(ctx, agent), 0, false
 		}
 		ownErr = err
 	}
@@ -679,7 +684,7 @@ func (h *Handler) resolveAgent(
 		if err == nil && agent != nil {
 			logger.Infof(ctx, "Using shared agent: ID=%s, Name=%s, IsBuiltin=%v, AgentMode=%s, effectiveTenantID=%d",
 				agent.ID, agent.Name, agent.IsBuiltin, agent.Config.AgentMode, agent.TenantID)
-			return agent, agent.TenantID, true
+			return h.withManagedAttachmentModels(ctx, agent), agent.TenantID, true
 		}
 		shareErr = err
 	}

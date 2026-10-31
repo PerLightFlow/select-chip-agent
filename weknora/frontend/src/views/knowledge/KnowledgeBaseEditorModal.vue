@@ -6,6 +6,7 @@
     <div class="content-wrapper">
       <!-- 基本信息 -->
       <div v-show="currentSection === 'basic'" class="section">
+        <t-alert v-if="managedRuntime" theme="info" :message="$t('managedRuntime.description')" style="margin-bottom: 20px" />
         <div v-if="formData" class="section-content">
           <div class="section-header">
             <h3 class="section-title">{{ $t('knowledgeEditor.basic.title') }}</h3>
@@ -241,7 +242,7 @@
       </div>
 
       <!-- 模型配置 -->
-      <div v-show="currentSection === 'models'" class="section">
+      <div v-if="!managedRuntime" v-show="currentSection === 'models'" class="section">
         <KBModelConfig
           ref="modelConfigRef"
           v-if="formData"
@@ -255,7 +256,7 @@
       </div>
 
       <!-- VectorStore 绑定 -->
-      <div v-show="currentSection === 'vectorStore'" class="section">
+      <div v-if="!managedRuntime" v-show="currentSection === 'vectorStore'" class="section">
         <KBVectorStoreSettings
           v-if="formData"
           :mode="editorMode"
@@ -304,7 +305,7 @@
       </div>
 
       <!-- 解析引擎 -->
-      <div v-if="!isFAQ && formData && currentSection === 'parser'" class="section">
+      <div v-if="!managedRuntime && !isFAQ && formData && currentSection === 'parser'" class="section">
         <KBParserSettings
           :parser-engine-rules="formData.chunkingConfig.parserEngineRules"
           @update:parser-engine-rules="handleParserEngineRulesUpdate"
@@ -312,7 +313,7 @@
       </div>
 
       <!-- 存储引擎 -->
-      <div v-if="!isFAQ && formData && currentSection === 'storage'" class="section">
+      <div v-if="!managedRuntime && !isFAQ && formData && currentSection === 'storage'" class="section">
         <KBStorageSettings
           :storage-backend-id="formData.storageBackendId"
           :storage-provider="formData.storageProvider"
@@ -323,7 +324,7 @@
       </div>
 
       <!-- 分块设置 -->
-      <div v-if="!isFAQ" v-show="currentSection === 'chunking'" class="section">
+      <div v-if="!managedRuntime && !isFAQ" v-show="currentSection === 'chunking'" class="section">
         <KBChunkingSettings
           v-if="formData"
           :config="formData.chunkingConfig"
@@ -332,7 +333,7 @@
       </div>
 
       <!-- 多模态配置 -->
-      <div v-if="!isFAQ" v-show="currentSection === 'multimodal'" class="section">
+      <div v-if="!managedRuntime && !isFAQ" v-show="currentSection === 'multimodal'" class="section">
         <div v-if="formData" class="kb-multimodal-settings">
           <div class="section-header">
             <h2>{{ $t('knowledgeEditor.multimodal.title') }}</h2>
@@ -482,7 +483,7 @@
       </div>
 
       <!-- 音频处理（ASR）设置 -->
-      <div v-if="!isFAQ" v-show="currentSection === 'asr'" class="section">
+      <div v-if="!managedRuntime && !isFAQ" v-show="currentSection === 'asr'" class="section">
         <div v-if="formData" class="kb-multimodal-settings">
           <div class="section-header">
             <h2>{{ $t('knowledgeEditor.asr.title') }}</h2>
@@ -526,7 +527,7 @@
       </div>
 
       <!-- 知识图谱 -->
-      <div v-if="!isFAQ && currentSection === 'graph'" class="section">
+      <div v-if="!managedRuntime && !isFAQ && currentSection === 'graph'" class="section">
         <GraphSettings
           v-if="formData"
           :graph-extract="formData.nodeExtractConfig"
@@ -537,7 +538,7 @@
       </div>
 
       <!-- 高级设置 -->
-      <div v-if="!isFAQ" v-show="currentSection === 'advanced'" class="section">
+      <div v-if="!managedRuntime && !isFAQ" v-show="currentSection === 'advanced'" class="section">
         <KBAdvancedSettings
           ref="advancedSettingsRef"
           v-if="formData"
@@ -599,11 +600,14 @@
     </template>
   </SettingsModalShell>
 
-  <KbCreateContextualGuide :when="visible && editorMode === 'create'" :is-faq="isFAQ"
+  <KbCreateContextualGuide :when="!managedRuntime && visible && editorMode === 'create'" :is-faq="isFAQ"
     :needs-embedding="kbCreateNeedsEmbedding" />
 </template>
 
 <script setup lang="ts">
+import { managedKnowledgePayload } from '@/config/managedRuntime'
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
+
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import KbCreateContextualGuide from '@/components/KbCreateContextualGuide.vue'
 import { KB_EDITOR_FOCUS_SECTION_EVENT, markContextualGuideDone } from '@/config/contextualGuides'
@@ -634,6 +638,7 @@ import { imageAttrDisplay, imageAttrConditionDisplay } from '@/utils/imageAttrDi
 
 // The image-attribute registry, fetched from the backend (single source of
 // truth). Falls back to the static registry until the endpoint answers.
+const { managed: managedRuntime } = useManagedRuntime()
 const imageAttrSchema = ref<ImageAttrSchema | null>(null)
 const displaySchema = computed<ImageAttrSchema>(
   () => imageAttrSchema.value ?? FALLBACK_IMAGE_ATTR_SCHEMA,
@@ -721,7 +726,7 @@ const currentSection = ref<string>('basic')
 
 const onKbEditorFocusSection = (event: Event) => {
   const section = (event as CustomEvent<{ section?: string }>).detail?.section
-  if (section) {
+  if (section && navItems.value.some(item => item.key === section)) {
     currentSection.value = section
   }
 }
@@ -845,7 +850,7 @@ const navItems = computed(() => {
   if (canViewActivity.value) {
     items.push({ key: 'activity', icon: 'history', label: t('knowledgeEditor.sidebar.activity') })
   }
-  return items
+  return managedRuntime.value ? items.filter(item => !['models', 'vectorStore', 'parser', 'storage', 'chunking', 'graph', 'advanced', 'multimodal', 'asr'].includes(item.key)) : items
 })
 
 // 左侧导航分组（与 AgentEditorModal 对齐）
@@ -1400,6 +1405,7 @@ const handleStorageBackendUpdate = (value: string) => {
 }
 
 async function loadTenantDefaultStorageProvider(force = false) {
+  if (managedRuntime.value) return
   try {
     await editorResources.ensureStorageEngine(force)
     tenantDefaultStorageProvider.value = editorResources.resolveUsableStorageProvider(
@@ -1494,20 +1500,20 @@ const validateForm = (): boolean => {
 
   // 验证模型配置 - embedding 模型仅在检索索引启用时必须
   const needsEmbedding = formData.value.indexingStrategy?.vectorEnabled || formData.value.indexingStrategy?.keywordEnabled
-  if (needsEmbedding && !formData.value.modelConfig.embeddingModelId) {
+  if (!managedRuntime.value && needsEmbedding && !formData.value.modelConfig.embeddingModelId) {
     MessagePlugin.warning(t('knowledgeEditor.indexing.embeddingRequired'))
     currentSection.value = 'models'
     return false
   }
 
-  if (!formData.value.modelConfig.llmModelId) {
+  if (!managedRuntime.value && !formData.value.modelConfig.llmModelId) {
     MessagePlugin.warning(t('knowledgeEditor.messages.summaryRequired'))
     currentSection.value = 'models'
     return false
   }
 
   // 验证多模态配置（如果启用）
-  if (formData.value.multimodalConfig.enabled && !formData.value.multimodalConfig.vllmModelId) {
+  if (!managedRuntime.value && formData.value.multimodalConfig.enabled && !formData.value.multimodalConfig.vllmModelId) {
     MessagePlugin.warning(t('knowledgeEditor.messages.multimodalInvalid'))
     currentSection.value = 'multimodal'
     return false
@@ -1516,7 +1522,7 @@ const validateForm = (): boolean => {
   // 选中的解析方案违反了它自己的规则（如传统方案两个动作开关都关）：跑起来
   // 什么都不会做，属于配置错误而不是合法选择。提示文案与面板底部那几行同源，
   // 因此规则加得多、提示也就跟着变，这里不必跟着改。
-  if (formData.value.multimodalConfig.enabled && imagePipelineInvalid.value) {
+  if (!managedRuntime.value && formData.value.multimodalConfig.enabled && imagePipelineInvalid.value) {
     MessagePlugin.warning(t('imagePipeline.errors.noActionEnabled'))
     currentSection.value = 'multimodal'
     return false
@@ -1741,7 +1747,7 @@ const doSubmit = async () => {
 
     if (editorMode.value === 'create') {
       // 创建模式：一次性创建知识库及所有配置
-      const result: any = await createKnowledgeBase(data)
+      const result: any = await createKnowledgeBase(managedKnowledgePayload(data, managedRuntime.value))
       if (!result.success || !result.data?.id) {
         throw new Error(result.message || t('knowledgeEditor.messages.createFailed'))
       }
@@ -1795,7 +1801,7 @@ const doSubmit = async () => {
       await updateKnowledgeBase(kbId, {
         name: data.name,
         description: data.description,
-        config: updateConfig
+        config: managedKnowledgePayload(updateConfig, managedRuntime.value)
       })
 
       // 2. 更新完整配置（模型、分块、多模态、存储引擎、知识图谱等）
@@ -1840,7 +1846,7 @@ const doSubmit = async () => {
         }
       }
 
-      await updateKBConfig(kbId, config)
+      if (!managedRuntime.value) await updateKBConfig(kbId, config)
       MessagePlugin.success(t('knowledgeEditor.messages.updateSuccess'))
 
       // Check if indexing strategy changed and offer rebuild
@@ -1947,7 +1953,7 @@ watch(() => props.visible, async (newVal) => {
     
     // 检查是否有初始 section，如果有则跳转
     if (uiStore.kbEditorInitialSection) {
-      currentSection.value = uiStore.kbEditorInitialSection
+      currentSection.value = managedRuntime.value ? 'basic' : uiStore.kbEditorInitialSection
     }
     
     // 加载模型列表与空间默认存储引擎（创建 KB 时即使用，不依赖是否打开「存储引擎」Tab）

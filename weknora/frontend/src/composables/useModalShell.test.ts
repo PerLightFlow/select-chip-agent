@@ -44,6 +44,7 @@ function fixture() {
       DialogPlugin: { confirm: (options: any) => { dialogs.push(options); return { destroy() {} } } },
       MessagePlugin: { success() {}, error() {}, warning(message: string) { warnings.push(message) } },
     },
+    '@/composables/useManagedRuntime': { useManagedRuntime: () => ({ managed: vue.ref(false) }) },
     '@/stores/ui': { useUIStore: () => ui },
     '@/stores/auth': { useAuthStore: () => ({ hasRole: () => true }) },
     '@/stores/organization': { useOrganizationStore: () => ({ sharedKnowledgeBases: [] }) },

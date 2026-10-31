@@ -64,6 +64,7 @@
       </div>
     </div>
 
+    <template v-if="!managedRuntime">
     <h3 class="group-title">
       {{ t('assistantSettings.workspaceGroup') }}
       <span v-if="!canEdit" class="group-note">{{ t('assistantSettings.adminOnly') }}</span>
@@ -94,10 +95,13 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
+
 import { computed, onMounted, reactive, watch } from 'vue'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
@@ -114,12 +118,13 @@ import {
   type AssistantConfig,
 } from '@/api/assistant'
 
+const { managed: managedRuntime } = useManagedRuntime()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const assistant = useAssistantStore()
 const workspaceOwner = computed(() => `${authStore.user?.id}:${authStore.effectiveTenantId}`)
 
-const canEdit = computed(() => authStore.canAccessAllTenants || authStore.hasRole('admin'))
+const canEdit = computed(() => !managedRuntime.value && (authStore.canAccessAllTenants || authStore.hasRole('admin')))
 const assistantName = computed(() => assistant.displayName || t('assistant.title'))
 const modKey = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+'
 

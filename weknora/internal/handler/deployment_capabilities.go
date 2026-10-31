@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Tencent/WeKnora/internal/sandbox"
+	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -36,8 +37,9 @@ type DeploymentCapability struct {
 
 // DeploymentCapabilitiesData is returned by GET /system/capabilities.
 type DeploymentCapabilitiesData struct {
-	Edition      string                          `json:"edition"`
-	Capabilities map[string]DeploymentCapability `json:"capabilities"`
+	ManagedRuntime bool                            `json:"managed_runtime"`
+	Edition        string                          `json:"edition"`
+	Capabilities   map[string]DeploymentCapability `json:"capabilities"`
 }
 
 // DeploymentFeatureAvailability mirrors injected backend handlers/services.
@@ -114,7 +116,8 @@ func BuildDeploymentCapabilities(
 	}
 
 	return DeploymentCapabilitiesData{
-		Edition: edition,
+		ManagedRuntime: types.ManagedRuntimeEnabled(),
+		Edition:        edition,
 		Capabilities: map[string]DeploymentCapability{
 			"organizations":                    organizations,
 			"agents":                           supportedDeploymentCapability(available.Agents),

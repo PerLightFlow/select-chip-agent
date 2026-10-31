@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useManagedRuntime } from '@/composables/useManagedRuntime'
+
 import { ref, onMounted, onBeforeUnmount, onUnmounted, computed, watch, nextTick, h, type PropType } from "vue";
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
@@ -57,6 +59,7 @@ import { SKILL_ICON, type MentionItem, type MentionItemType, type MentionRequest
 import { toolboxLocation } from '@/config/toolbox';
 import { supportedLevels, levelLabelKey, levelFromLegacy, clampLevel, type ReasoningLevel } from '@/utils/reasoningEffort';
 
+const { managed: managedRuntime } = useManagedRuntime()
 const route = useRoute();
 const router = useRouter();
 const settingsStore = useSettingsStore();
@@ -1137,6 +1140,7 @@ const composerModel = computed(() => {
   return embeddedPickedModel.value || embeddedDefaultModel.value;
 });
 const composerModelId = computed(() => {
+  if (managedRuntime.value) return '';
   if (!props.embeddedMode) return selectedModelId.value;
   return composerModel.value?.id || '';
 });
@@ -2216,7 +2220,7 @@ const createSession = async (
   const imageFiles = uploadedImages.value.map(img => img.file);
   const attachmentFiles = uploadedAttachments.value;
 
-  emit('send-msg', val, selectedModelId.value, mentionedItems, imageFiles, attachmentFiles, options);
+  emit('send-msg', val, managedRuntime.value ? '' : selectedModelId.value, mentionedItems, imageFiles, attachmentFiles, options);
 
   // Clean up image previews
   uploadedImages.value.forEach(img => URL.revokeObjectURL(img.preview));
@@ -2598,7 +2602,7 @@ const collectAgentNotReadyReasons = (
   const keys = getAgentNotReadyReasonKeys(agent.config, allModels.value, {
     isAgentMode,
     isSharedAgent,
-  });
+  }).filter(key => !managedRuntime.value || !['summary_model', 'rerank_model'].includes(key));
   return {
     keys,
     labels: formatAgentNotReadyReasons(keys, agent.is_builtin),
@@ -2997,7 +3001,7 @@ defineExpose({
           <slot name="controls" />
 
           <!-- 模型显示 -->
-          <t-tooltip :content="modelTriggerTooltip" :disabled="!modelTriggerTooltip">
+          <t-tooltip v-if="!managedRuntime" :content="modelTriggerTooltip" :disabled="!modelTriggerTooltip">
             <div class="model-display" :class="{ 'agent-controlled': isModelLockedByAgent }">
               <div ref="modelButtonRef" class="model-selector-trigger" @click.stop="toggleModelSelector">
                 <span class="model-selector-name">
@@ -3019,7 +3023,7 @@ defineExpose({
               </div>
             </div>
           </t-tooltip>
-          <t-popup v-if="!embeddedMode && reasoningLevels.length > 0" v-model:visible="showReasoningSelector"
+          <t-popup v-if="!managedRuntime && !embeddedMode && reasoningLevels.length > 0" v-model:visible="showReasoningSelector"
             trigger="click" placement="top-right" :disabled="composerLocked"
             :overlay-inner-style="{ padding: '4px', borderRadius: 'var(--app-radius-lg)' }"
             @visible-change="handleReasoningVisibleChange">
@@ -3050,7 +3054,7 @@ defineExpose({
         </div>
 
         <Teleport to="body">
-          <div v-if="showModelSelector" class="model-selector-overlay" @click="closeModelSelector">
+          <div v-if="!managedRuntime && showModelSelector" class="model-selector-overlay" @click="closeModelSelector">
             <div class="model-selector-dropdown" :style="modelDropdownStyle" @click.stop>
               <div class="model-selector-header">
                 <span>{{ $t('conversationSettings.models.chatGroupLabel') }}</span>

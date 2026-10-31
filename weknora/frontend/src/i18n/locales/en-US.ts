@@ -1,4 +1,5 @@
 export default {
+  managedRuntime: {"title": "System managed", "description": "Models and runtime are configured by your system administrator.", "unavailable": "The system service is not configured. Please contact your administrator."},
   solex: {"workspace": "WORKSPACE", "recentChats": "Recent conversations", "heroEyebrow": "SOLEX · KNOWLEDGE & RESEARCH", "heroTitle": "Turn a question into clarity.", "heroDescription": "Connect your team’s knowledge. Clarify requirements, explore sources, and move forward with confidence.", "composerHint": "Start with an idea, or choose a knowledge base or an agent.", "admin": "SOLEX administrator", "account": "Account & settings"},
   modelCatalog: {
     "title": "Model catalog",

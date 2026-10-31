@@ -51,6 +51,9 @@ func (h *Handler) UploadTemporaryDocument(c *gin.Context) {
 	}
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(fileHeader.Filename)), ".")
 	options := types.TemporaryDocumentCreateOptions{ParserEngine: strings.TrimSpace(c.PostForm("parser_engine"))}
+	if types.ManagedRuntimeEnabled() && !types.IsSystemAdminFromContext(ctx) {
+		options.ParserEngine = ""
+	}
 	if agent != nil {
 		options.ResourceTenantID = resourceTenantID
 		// A shared agent parses in its owner's workspace, with the parser
@@ -73,7 +76,7 @@ func (h *Handler) UploadTemporaryDocument(c *gin.Context) {
 		// Resolve the parser engine from the agent's chat rules when the caller
 		// did not pass an explicit engine. Tenant-level rules remain the final
 		// fallback and are applied in the parse worker.
-		if options.ParserEngine == "" || options.ParserEngine == "auto" {
+		if (!types.ManagedRuntimeEnabled() || types.IsSystemAdminFromContext(ctx)) && (options.ParserEngine == "" || options.ParserEngine == "auto") {
 			if engine := agent.Config.ResolveChatParserEngine(ext); engine != "" {
 				options.ParserEngine = engine
 			}
