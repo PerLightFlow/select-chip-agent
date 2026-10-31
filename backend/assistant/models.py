@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import Q
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
+from django.utils import timezone
 
 
 class Conversation(models.Model):
@@ -102,3 +103,56 @@ class Passage(models.Model):
 
     class Meta:
         indexes = [GinIndex(fields=['search_vector'])]
+
+
+class KnowledgeCollection(models.Model):
+    """Business scope mapped to one dedicated WeKnora KB, never a user account."""
+    scope = models.CharField(max_length=80, unique=True)  # common or project:<id>
+    remote_id = models.CharField(max_length=100, blank=True)
+    generation = models.PositiveIntegerField(default=0)
+    # Wiki retrieval is intentionally not enabled in the first rollout.
+    wiki_state = models.CharField(max_length=24, default='disabled')
+    wiki_error = models.CharField(max_length=300, blank=True)
+    wiki_next_check = models.DateTimeField(default=timezone.now)
+
+
+class KnowledgeReplica(models.Model):
+    """Durable outbox and immutable version binding; no remote calls in publish transactions."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    version = models.OneToOneField(KnowledgeVersion, on_delete=models.PROTECT, related_name='replica')
+    collection = models.ForeignKey(KnowledgeCollection, on_delete=models.PROTECT, related_name='replicas')
+    remote_id = models.CharField(max_length=100, null=True, blank=True, unique=True)
+    state = models.CharField(max_length=24, default='queued', db_index=True)
+    source_ready = models.BooleanField(default=False)
+    wiki_state = models.CharField(max_length=24, default='disabled')
+    wiki_error = models.CharField(max_length=300, blank=True)
+    wiki_retraction = models.JSONField(null=True)
+    attempts = models.PositiveIntegerField(default=0)
+    failures = models.PositiveIntegerField(default=0)
+    upload_started_at = models.DateTimeField(null=True)
+    delete_requested_at = models.DateTimeField(null=True)
+    reparse_requested = models.BooleanField(default=False)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    error = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['state', 'next_attempt_at'])]
+
+
+class WikiSnapshot(models.Model):
+    """Immutable generated page, exposed only while its publication generation is current."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    collection = models.ForeignKey(KnowledgeCollection, on_delete=models.CASCADE, related_name='wiki_pages')
+    generation = models.PositiveIntegerField()
+    slug = models.CharField(max_length=255)
+    title = models.CharField(max_length=512)
+    page_type = models.CharField(max_length=32)
+    version = models.PositiveIntegerField()
+    content = models.TextField()
+    sources = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['collection', 'generation', 'slug'], name='unique_wiki_snapshot')]

@@ -57,6 +57,8 @@ type Proposal = {
   data: Card;
 };
 type Source = { url: string; title?: string; locator?: string; kind?: string };
+type WikiPage = { id: string; title: string; page_type: string; version: number; content?: string; sources?: Source[] };
+type WikiIndex = { enabled: boolean; count: number; items: WikiPage[]; collections: { scope: string; wiki_state: string; wiki_error: string }[] };
 type Conversation = {
   brief?: string;
   id: string;
@@ -75,7 +77,10 @@ type Doc = {
   title: string;
   project_id: number | null;
   can_edit: boolean;
-  versions: { id: number; revision: number; state: string; error: string }[];
+  versions: {
+    id: number; revision: number; state: string; error: string;
+    sync?: { state: string; source_ready: boolean; wiki_state: string; wiki_error?: string; error: string } | null;
+  }[];
   preview?: string;
   version_id?: number;
 };
@@ -227,6 +232,9 @@ function App() {
     [uploadDocument, setUploadDocument] = useState<number | null>(null),
     [file, setFile] = useState<File | null>(null);
   const [reviewProposal, setReviewProposal] = useState<Proposal | null>(null);
+  const [wikiIndex, setWikiIndex] = useState<WikiIndex | null>(null),
+    [wikiPage, setWikiPage] = useState<WikiPage | null>(null),
+    [wikiOffset, setWikiOffset] = useState(0);
   const bottom = useRef<HTMLDivElement>(null),
     selected = useRef<string | null>(null);
   const running =
@@ -266,17 +274,19 @@ function App() {
     });
   }
   async function refreshKnowledge(offset = docOffset) {
-    const [p, d, ps] = await Promise.all([
+    const [p, d, ps, w] = await Promise.all([
       api<{ items: Project[] }>("assistant/projects/"),
       api<{ items: Doc[]; count: number }>(
         `assistant/documents/?offset=${offset}`,
       ),
       api<Proposal[]>("assistant/proposals/"),
+      api<WikiIndex>(`assistant/wiki/?offset=${wikiOffset}`),
     ]);
     setProjects(p.items);
     setDocs(d.items);
     setDocCount(d.count);
     setProposals(ps);
+    setWikiIndex(w);
   }
   useEffect(() => {
     api<User>("session/")
@@ -315,9 +325,9 @@ function App() {
   useEffect(() => {
     if (
       tab !== "knowledge" ||
-      !docs.some((d) =>
-        d.versions.some((v) => ["queued", "indexing"].includes(v.state)),
-      )
+      (!docs.some((d) => d.versions.some((v) => ["queued", "indexing"].includes(v.state) ||
+        (v.state === "published" && v.sync && (!v.sync.source_ready || v.sync.wiki_state === "pending")))) &&
+       !wikiIndex?.collections.some((c) => ["pending", "dirty"].includes(c.wiki_state)))
     )
       return;
     const t = setInterval(
@@ -325,7 +335,7 @@ function App() {
       4000,
     );
     return () => clearInterval(t);
-  }, [tab, docs]);
+  }, [tab, docs, wikiIndex, wikiOffset]);
   async function send(text = input) {
     if (!text.trim()) return;
     await act(async () => {
@@ -801,6 +811,34 @@ function App() {
                 <p className="excerpt">{h.text}</p>
               </article>
             ))}
+            {wikiIndex?.enabled && (
+              <section className="panel">
+                <h2>Wiki 自动整理</h2>
+                <p className="muted small">从已确认资料整理项目、芯片、模块和人员关系。自动整理内容需结合原文核对。</p>
+                {wikiIndex.collections.filter((c) => c.wiki_state !== "ready").map((c) => (
+                  <p className={c.wiki_state === "failed" ? "error small" : "muted small"} key={c.scope}>
+                    {c.wiki_error || "Wiki 正在整理，完成后自动展示；原文检索可继续使用。"}
+                  </p>
+                ))}
+                {wikiIndex.items.map((p) => (
+                  <button className="wiki-item" key={p.id} onClick={() => act(async () => setWikiPage(await api(`assistant/wiki/${p.id}/`)))}>
+                    <BookOpen size={16} /> {p.title}
+                  </button>
+                ))}
+                {!wikiIndex.items.length && <p className="muted small">暂无可展示页面。资料确认共享后会自动整理。</p>}
+                {wikiIndex.count > 30 && <div className="actions">
+                  <button disabled={!wikiOffset} onClick={() => act(async () => {
+                    const offset = Math.max(0, wikiOffset - 30); setWikiOffset(offset);
+                    setWikiIndex(await api(`assistant/wiki/?offset=${offset}`));
+                  })}>上一页 Wiki</button>
+                  <span>{wikiOffset + 1}–{Math.min(wikiOffset + 30, wikiIndex.count)} / {wikiIndex.count}</span>
+                  <button disabled={wikiOffset + 30 >= wikiIndex.count} onClick={() => act(async () => {
+                    const offset = wikiOffset + 30; setWikiOffset(offset);
+                    setWikiIndex(await api(`assistant/wiki/?offset=${offset}`));
+                  })}>下一页 Wiki</button>
+                </div>}
+              </section>
+            )}
             <div className="knowledge-grid">
               <section className="panel">
                 <h2>{uploadDocument ? "补充新版本" : "添加项目资料"}</h2>
@@ -907,6 +945,18 @@ function App() {
                       </p>
                       {d.versions[0]?.error && (
                         <p className="error">{d.versions[0].error}</p>
+                      )}
+                      {d.versions[0]?.state === "published" && d.versions[0]?.sync && (
+                        <p className={d.versions[0].sync.error ? "error small" : "muted small"}>
+                          {d.versions[0].sync.source_ready
+                            ? "新知识索引已就绪"
+                            : d.versions[0].sync.error || "正在建立新知识索引"}
+                        </p>
+                      )}
+                      {d.versions[0]?.state === "published" && d.versions[0]?.sync && d.versions[0].sync.wiki_state !== "disabled" && (
+                        <p className={d.versions[0].sync.wiki_error ? "error small" : "muted small"}>
+                          {d.versions[0].sync.wiki_error || (d.versions[0].sync.wiki_state === "ready" ? "Wiki 已整理" : "Wiki 整理中")}
+                        </p>
                       )}
                     </div>
                     <button
@@ -1107,6 +1157,22 @@ function App() {
             </a>
             {preview.can_edit && (
               <div className="actions">
+                {preview.versions.some((v) => v.id === preview.version_id && v.state === "published" && v.sync?.wiki_state === "failed") && (
+                  <button disabled={busy} onClick={() => act(async () => {
+                    await api(`assistant/documents/${preview.id}/`, "POST", {action: "retry_wiki", version_id: preview.version_id});
+                    setPreview(await api(`assistant/documents/${preview.id}/?version=${preview.version_id}`));
+                    await refreshKnowledge();
+                  })}>重试 Wiki 整理</button>
+                )}
+                {preview.versions.some((v) => v.id === preview.version_id && v.state === "published" &&
+                  ["blocked", "retry", "uncertain"].includes(v.sync?.state || "")) && (
+                  <button disabled={busy} onClick={() => act(async () => {
+                    await api(`assistant/documents/${preview.id}/`, "POST",
+                      { action: "retry_sync", version_id: preview.version_id });
+                    setPreview(await api(`assistant/documents/${preview.id}/?version=${preview.version_id}`));
+                    await refreshKnowledge();
+                  })}>重试知识同步</button>
+                )}
                 {preview.versions.find((v) => v.id === preview.version_id)
                   ?.state === "ready" && (
                   <button
@@ -1151,6 +1217,18 @@ function App() {
                 )}
               </div>
             )}
+          </section>
+        </div>
+      )}
+      {wikiPage && (
+        <div className="modal">
+          <section className="modal-body">
+            <button className="close" aria-label="关闭 Wiki 页面" onClick={() => setWikiPage(null)}><X /></button>
+            <h2>{wikiPage.title}</h2>
+            <p className="muted small">自动整理 · Wiki 版本 {wikiPage.version} · 事实以已确认记录和原文为准</p>
+            <Rich text={wikiPage.content || ""} />
+            <h3>原始依据</h3>
+            {wikiPage.sources?.map((s) => <p key={s.url}><a href={safeLink(s.url)} target="_blank" rel="noreferrer">{s.title}</a></p>)}
           </section>
         </div>
       )}

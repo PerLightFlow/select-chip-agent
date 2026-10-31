@@ -501,6 +501,14 @@ small,
 .section-title > button {
   font-size: 12px;
 }
+.wiki-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 8px 4px 0;
+  max-width: 100%;
+  text-align: left;
+}
 .document-row {
   display: flex;
   align-items: center;

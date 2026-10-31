@@ -6,7 +6,10 @@ from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import Conversation, Message, Turn, EnterpriseProject, Proposal, KnowledgeDocument, KnowledgeVersion
-from .knowledge import propose, confirm_proposal, project_record, find_projects, retrieve, confirm_document
+from .knowledge import propose, confirm_proposal, project_record, find_projects, retrieve, confirm_document, withdraw_document
+from .knowledge_sync import status_for, retry as retry_sync
+from .knowledge_backends.weknora import KnowledgeUnavailable
+from . import wiki
 
 
 def proposal_data(p):
@@ -135,9 +138,12 @@ def document_data(doc, user):
     versions = doc.versions.all()
     if doc.owner_id != user.pk and not user.is_staff:
         versions = versions.filter(state__in=['published', 'archived'])
+    rows = [{'id': v.pk, 'revision': v.revision, 'state': v.state, 'error': v.error,
+             'digest': v.digest, 'created_at': v.created_at, 'sync': status_for(v)}
+            for v in versions.select_related('replica').order_by('-revision')[:20]]
     return {'id': doc.pk, 'title': doc.title, 'project_id': doc.project_id,
             'can_edit': doc.owner_id == user.pk or user.is_staff,
-            'versions': list(versions.order_by('-revision').values('id', 'revision', 'state', 'error', 'digest', 'created_at')[:20])}
+            'versions': rows}
 
 
 @api_view(['GET', 'POST'])
@@ -195,11 +201,18 @@ def document_detail(request, document_id):
         if request.data.get('action') == 'confirm':
             confirm_document(v.pk, request.user)
         elif request.data.get('action') == 'withdraw':
+            withdraw_document(v.pk, request.user)
+        elif request.data.get('action') == 'retry_sync':
+            if v.state != 'published' or not hasattr(v, 'replica'):
+                raise ValueError('只有已共享且存在同步任务的资料可以重试')
+            retry_sync(v.pk)
+        elif request.data.get('action') == 'retry_wiki':
+            if not hasattr(v, 'replica'):
+                raise ValueError('请等待原文同步完成')
             with transaction.atomic():
                 KnowledgeDocument.objects.select_for_update().get(pk=doc.pk)
                 v = KnowledgeVersion.objects.select_for_update().get(pk=v.pk)
-                v.state = 'withdrawn'
-                v.save()
+                wiki.retry_wiki(v)
         else:
             raise ValueError('请选择确认共享或撤回')
     except (ValueError, PermissionError) as exc:
@@ -226,4 +239,40 @@ def search(request):
     query = request.data.get('query', '')
     if not isinstance(query, str) or not 1 <= len(query.strip()) <= 1000:
         return Response({'error': '请输入查询内容'}, status=400)
-    return Response({'items': retrieve(query, request.data.get('project_id'))})
+    try:
+        return Response({'items': retrieve(query, request.data.get('project_id'))})
+    except KnowledgeUnavailable as exc:
+        return Response({'error': str(exc)}, status=503)
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=400)
+
+
+@api_view(['GET'])
+def wiki_pages(request):
+    from django.conf import settings
+    from .models import KnowledgeCollection
+    try:
+        offset = max(0, int(request.query_params.get('offset', 0)))
+    except ValueError:
+        return Response({'error': '分页参数错误'}, status=400)
+    pages = wiki.visible_pages().filter(title__icontains=request.query_params.get('q', '')[:200])
+    result = {'enabled': settings.WEKNORA_WIKI_ENABLED,
+        'collections': list(KnowledgeCollection.objects.values('scope', 'wiki_state', 'wiki_error')),
+        'count': pages.count(), 'items': list(pages.order_by('title', 'id')[offset:offset+30].values(
+            'id', 'title', 'page_type', 'version', 'created_at'))}
+    return Response(result, headers={'Cache-Control': 'no-store'})
+
+
+@api_view(['GET'])
+def wiki_page(request, page_id):
+    from .knowledge_backends.retrieval import validate_answer_sources
+    with transaction.atomic():
+        page = get_object_or_404(wiki.visible_pages(), pk=page_id)
+        try:
+            validate_answer_sources(page.sources)
+        except KnowledgeUnavailable:
+            return Response({'error': 'Wiki 依据刚刚更新，请刷新后查看'}, status=409)
+        if not wiki.visible_pages().filter(pk=page.pk).exists():
+            return Response({'error': 'Wiki 正在更新，请刷新后查看'}, status=409)
+        return Response({'id': page.pk, 'title': page.title, 'content': page.content, 'page_type': page.page_type,
+            'version': page.version, 'sources': page.sources, 'generated': True}, headers={'Cache-Control': 'no-store'})

@@ -78,3 +78,22 @@ AGENT_TURN_SECONDS = int(os.getenv('AGENT_TURN_SECONDS', '300'))
 AGENT_MODEL_TIMEOUT = int(os.getenv('AGENT_MODEL_TIMEOUT', '120'))
 AGENT_RUNTIME = os.getenv('AGENT_RUNTIME', 'chat')
 CODEX_BINARY = os.getenv('CODEX_BINARY', '/usr/local/bin/codex')
+
+# Enterprise retrieval is opt-in; legacy indexing remains current for rollback.
+KNOWLEDGE_BACKEND = os.getenv('KNOWLEDGE_BACKEND', 'legacy')
+WEKNORA_SYNC_ENABLED = os.getenv('WEKNORA_SYNC_ENABLED', '0') == '1'
+WEKNORA_WIKI_ENABLED = os.getenv('WEKNORA_WIKI_ENABLED', '0') == '1'
+WEKNORA_WIKI_MAX_PAGES = int(os.getenv('WEKNORA_WIKI_MAX_PAGES', '2000'))
+WEKNORA_BASE_URL = os.getenv('WEKNORA_BASE_URL', '').rstrip('/')
+WEKNORA_READ_KEY = os.getenv('WEKNORA_READ_KEY', '')
+WEKNORA_WRITE_KEY = os.getenv('WEKNORA_WRITE_KEY', '')
+WEKNORA_TIMEOUT = int(os.getenv('WEKNORA_TIMEOUT', '30'))
+WEKNORA_MAX_DOCUMENTS = int(os.getenv('WEKNORA_MAX_DOCUMENTS', '10000'))
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {'knowledge_console': {'class': 'logging.StreamHandler'}},
+    'loggers': {'assistant.knowledge_backends.retrieval': {
+        'handlers': ['knowledge_console'], 'level': 'INFO', 'propagate': False,
+    }},
+}

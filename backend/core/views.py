@@ -107,7 +107,7 @@ def sign_out(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(request):
-    return Response({'status':'ok','version':'0.2.6'})
+    return Response({'status':'ok','version':'0.3.0'})
 
 
 class ProjectSerializer(serializers.ModelSerializer):

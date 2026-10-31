@@ -1,4 +1,4 @@
-# 企业研发助手 · v0.2
+# 企业研发助手 · v0.3
 
 通过连续对话梳理产品需求、联网调研芯片，并查询和维护企业项目知识。保留原有账号和管理员体系。
 
@@ -13,13 +13,15 @@
 
 模型漏保存需求摘要时，应用会在私有摘要中保留用户本轮原话，明确标注提问不等于已确认事实。原话补充有上下文长度上限，完整聊天记录保持；正常调用摘要工具后使用其整理结果。
 
-知识库目前采用项目结构化查询与中文关键词全文检索，包含来源和版本，不宣称已实现语义向量检索。旧版个人选型记录与规则 API 继续保留，旧入口说明见 [v0.1 文档](docs/v01-readme.md)。
+正式知识回答采用项目结构化查询与 WeKnora 文档检索，包含来源和版本。服务器已直接切换到 `weknora`：同步已确认资料，使用本地向量与关键词检索，不运行对照查询或自动回退到旧检索。旧版个人选型记录与规则 API 继续保留，旧入口说明见 [v0.1 文档](docs/v01-readme.md)。
 
 ## 源码与版本管理
 
 源码统一维护于 [PerLightFlow/select-chip-agent](https://github.com/PerLightFlow/select-chip-agent)，默认分支为 `main`。仓库根目录包含 `backend/`、`frontend/`、`deploy/` 和 `docs/`；需求、设计决策与术语也随代码保存。数据库、上传资料、模型密钥、镜像包、验收运行产物和日志不进入 Git。
 
-当前已部署组合为网页 `chat-controls-v027`、HTTP 后端 `signup-v026`、后台任务 `reframing-v02.5`；健康 API 版本仍为 `0.2.6`。部署记录见 [运行说明](docs/operations-v02.md)，需求见 [已确认需求](docs/requirements/2026-10-29-agent-reframing.md)。
+2026-10-30 已部署网页、HTTP 后端和后台任务 `weknora-v030`，健康 API 版本为 `0.3.0`。本阶段代码尚未提交 Git。部署及验收见 [v0.3.0 发布记录](docs/deployment/2026-10-30-weknora-v030.md)，此前安装说明见 [运行说明](docs/operations-v02.md)，需求见 [已确认需求](docs/requirements/2026-10-29-agent-reframing.md)。
+
+WeKnora 第一阶段已部署已确认文档同步、原文检索、版本引用、独立 worker 和可回退的检索开关；使用独立 WeKnora v0.9.0 与本地 `qwen3-embedding:0.6b`。基础开发模板默认 `legacy`，WeKnora 发布脚本和当前服务器采用 `weknora`；Wiki 尚未启用。部署与恢复步骤见 [WeKnora 运行说明](deploy/weknora/README.md)，设计与边界见 [接入方案](docs/design/2026-10-29-weknora-integration.md)。
 
 ## Docker 启动
 
@@ -56,16 +58,17 @@ LLM_TEMPERATURE=0.6
 
 ## 验证与边界
 
-v0.2.6 发布镜像已通过 82 项后端测试、3 项注册/登录浏览器检查及 TypeScript/Vite 构建；v0.2.5 另有 5 项工作空间浏览器检查，覆盖账号隔离、持续对话、停止、确认、历史、权限冲突和资料格式。真实公开搜索、官方 PDF 读取、Ark Responses 和 Codex 工具调用分别通过。注册更新版本为 v0.2.6；完整线上组合的验收报告由发布脚本生成，见运行说明与实现状态。
+v0.3.0 已通过 106 项后端测试、2 项 bootstrap 协议测试、10 项浏览器测试和前端构建。真实 WeKnora API 已分别验证向量与关键词检索；独立 Django 数据库验收通过草稿隔离、发布同步、版本引用、撤回过滤和异步删除。正式服务及静态资源健康检查通过。详细证据与限制见 [发布记录](docs/deployment/2026-10-30-weknora-v030.md)。
 
-v0.2.5 服务器实测：200 个合成账号、10,000 份文字资料、50,000 片段，50 个并发检索全部正确，P95 2.432 秒；另行运行的 50 个真实模型与联网调研任务全部成功，P50 83.46 秒、P95 118.50 秒。并发调研覆盖五类视觉需求、共同三款候选与公开资料缓存，合成文字不能代表实际企业 PDF/表格分布，也不是任意负载 SLA。其他复测曾出现一次模型 120 秒超时，5 并发阶段最慢 191.80 秒；详细成功数和失败记录均保留在发布报告。
+以下是 v0.2.5 原检索架构的历史结果，不能作为 WeKnora 容量验收：200 个合成账号、10,000 份文字资料、50,000 片段，50 个并发检索全部正确，P95 2.432 秒；另行运行的 50 个真实模型与联网调研任务全部成功，P50 83.46 秒、P95 118.50 秒。并发调研覆盖五类视觉需求、共同三款候选与公开资料缓存，合成文字不能代表实际企业 PDF/表格分布，也不是任意负载 SLA。其他复测曾出现一次模型 120 秒超时，5 并发阶段最慢 191.80 秒；详细成功数和失败记录均保留在发布报告。
 
 当前不包含扫描件/OCR、企业系统自动同步、模型部署到芯片或实机性能验证。单文档最多 10 MiB；网络 PDF 最多读取前 20 页且输出有长度上限，复杂表格需核对原件。搜索引擎可能限流或出现验证码；失败会保留输入，不以虚构参数填补。1–3 分钟首份结果是体验目标，尚未承诺为 SLA。
 
 ## 开发检查
 
 ```bash
-docker compose exec backend python manage.py test core.tests assistant.tests
+docker compose exec backend python manage.py test core.tests assistant
+python3 deploy/weknora/test_bootstrap.py
 cd frontend
 npm ci
 npm run build

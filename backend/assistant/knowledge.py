@@ -125,6 +125,12 @@ def find_projects(query, as_of=None):
 
 
 def retrieve(query, project_id=None):
+    from .knowledge_backends.retrieval import retrieve as backend_retrieve
+    return backend_retrieve(query, project_id)
+
+
+def retrieve_legacy(query, project_id=None):
+    from .knowledge_backends.retrieval import published_versions
     terms = list(dict.fromkeys(tokenize(query[:1000]).split()))[:30]
     sq = None
     for term in terms:
@@ -132,14 +138,7 @@ def retrieve(query, project_id=None):
         sq = item if sq is None else sq | item
     if sq is None:
         return []
-    qs = Passage.objects.filter(version__state='published').select_related('version__document')
-    if project_id:
-        # A document can be cited by several project cards without changing its
-        # upload-time project. Only the currently effective, confirmed card counts.
-        data = (ProjectVersion.objects.filter(project_id=project_id, effective_from__lte=timezone.localdate())
-                .order_by('-effective_from', '-revision').values_list('data', flat=True).first()) or {}
-        qs = qs.filter(Q(version__document__project_id=project_id) |
-                       Q(version__document_id__in=data.get('document_ids', [])))
+    qs = Passage.objects.filter(version__in=published_versions(project_id)).select_related('version__document')
     # @@ uses the GIN index; filtering only on the computed rank scans every passage.
     qs = qs.filter(search_vector=sq).annotate(rank=SearchRank('search_vector', sq)).order_by('-rank', 'id')[:8]
     return [{'document_id': p.version.document_id, 'version_id': p.version_id, 'title': p.version.document.title,
@@ -176,6 +175,8 @@ def confirm_document(version_id, actor):
         if doc.owner_id != actor.pk and not actor.is_staff:
             raise PermissionError('只能维护自己提交的资料')
         if v.state == 'published':
+            from .knowledge_sync import publication_changed
+            publication_changed(doc)
             return
         if v.state != 'ready':
             raise ValueError('请先等待解析成功并查看预览')
@@ -184,4 +185,20 @@ def confirm_document(version_id, actor):
         doc.versions.filter(state='published').update(state='archived')
         v.state = 'published'
         v.save()
+        from .knowledge_sync import publication_changed
+        publication_changed(doc)
         AuditEvent.objects.create(actor=actor, action='share_enterprise_document', target=str(doc.pk), detail={'version': v.pk})
+
+
+def withdraw_document(version_id, actor):
+    with transaction.atomic():
+        v = KnowledgeVersion.objects.get(pk=version_id)
+        doc = KnowledgeDocument.objects.select_for_update().get(pk=v.document_id)
+        if doc.owner_id != actor.pk and not actor.is_staff:
+            raise PermissionError('只能维护自己提交的资料')
+        v = KnowledgeVersion.objects.select_for_update().get(pk=v.pk)
+        v.state = 'withdrawn'
+        v.save()
+        from .knowledge_sync import publication_changed
+        publication_changed(doc)
+        AuditEvent.objects.create(actor=actor, action='withdraw_enterprise_document', target=str(doc.pk), detail={'version': v.pk})

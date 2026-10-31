@@ -9,6 +9,8 @@ from rest_framework.exceptions import ValidationError
 from core.providers import ProviderUnavailable
 from .models import Turn, Message, Conversation
 from .tools import TOOLS, execute
+from .knowledge_backends.retrieval import validate_answer_sources
+from .knowledge_backends.weknora import KnowledgeUnavailable
 
 SYSTEM = '''你是企业研发助手。用中文自然交流。
 两个主任务：1. 多轮追问梳理产品需求，然后联网查芯片；2. 查询和维护企业项目知识。
@@ -152,6 +154,7 @@ def run_turn(turn_id):
                     raise Cancelled()
                 if not remembered:
                     retain_input(turn.conversation, latest_input)
+                validate_answer_sources(sources)
                 unique = {s['url']: {k: s[k] for k in ['url', 'title', 'locator', 'kind'] if k in s} for s in sources}
                 Message.objects.create(conversation=turn.conversation, role='assistant', content=content, sources=list(unique.values()))
                 locked.state, locked.usage = 'done', usage
@@ -191,6 +194,7 @@ def run_turn(turn_id):
                         raise Cancelled()
                     if not remembered:
                         retain_input(turn.conversation, latest_input)
+                    validate_answer_sources(sources)
                     Message.objects.create(conversation=turn.conversation, role='assistant', content=content, sources=list(unique.values()))
                     locked.state, locked.usage = 'done', usage
                     locked.save()
@@ -230,5 +234,5 @@ def run_turn(turn_id):
     except Cancelled:
         return
     except Exception as exc:
-        error = str(exc) if isinstance(exc, ProviderUnavailable) else '调研执行失败，请稍后重试；输入已保留'
+        error = str(exc) if isinstance(exc, (ProviderUnavailable, KnowledgeUnavailable)) else '调研执行失败，请稍后重试；输入已保留'
         Turn.objects.filter(pk=turn.pk, state='running').update(state='failed', error=error[:300], usage=usage, updated_at=timezone.now())
