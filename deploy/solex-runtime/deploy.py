@@ -54,6 +54,17 @@ def frontend_ok():
         raise RuntimeError('Frontend assets missing')
 
 
+def wait_frontend(seconds=90):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            frontend_ok()
+            return
+        except (OSError, RuntimeError):
+            time.sleep(2)
+    raise RuntimeError('Frontend health check timed out')
+
+
 def deploy():
     meta = json.loads((SOURCE / 'release.json').read_text())
     release_id = meta['release_id']
@@ -95,7 +106,7 @@ def deploy():
         private_write(env_path, new_env)
         compose()
         wait_health()
-        frontend_ok()
+        wait_frontend()
         for service, key in [('app','app_image'),('frontend','ui_image')]:
             running = command('docker','inspect','--format','{{.Image}}','weknora-native-' + service + '-1')
             expected = command('docker','image','inspect','--format','{{.Id}}',meta[key])
@@ -133,7 +144,7 @@ def deploy():
             try:
                 compose()
                 wait_health()
-                frontend_ok()
+                wait_frontend()
                 rollback['services_restored'] = True
             except Exception:
                 pass

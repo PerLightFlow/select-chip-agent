@@ -16,15 +16,20 @@ def expect_forbidden(client, method, path, data=None):
     raise RuntimeError('A managed configuration write was not rejected')
 
 
+def acceptance_identity():
+    # Match the application's complex-password policy (8-32 characters).
+    return {'username': '__managed_check_' + secrets.token_hex(4),
+            'email': 'managed-' + secrets.token_hex(6) + '@example.invalid',
+            'password': secrets.token_urlsafe(18) + 'Aa1!'}
+
+
 def run(state_dir):
     admin = Client()
     admin.login(json.loads((ROOT / 'admin.json').read_text()))
     caps = admin.call('GET', '/system/capabilities')['data']
     if not caps.get('managed_runtime'):
         raise RuntimeError('Managed runtime capability is not active')
-    state = {'username': '__managed_check_' + secrets.token_hex(4),
-             'email': 'managed-' + secrets.token_hex(6) + '@example.invalid',
-             'password': secrets.token_urlsafe(30) + 'Aa1!'}
+    state = acceptance_identity()
     client = Client()
     user_id = None
     tenant_id = None
