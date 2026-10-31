@@ -39,10 +39,7 @@ DOCKER_BUILDKIT=0 docker build \
   --build-arg "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --build-arg "GOPROXY=${SOLEX_GOPROXY:-https://proxy.golang.org,direct}" \
   --build-arg "GOSUMDB=${SOLEX_GOSUMDB:-sum.golang.org}" \
-  --build-arg "RUST_TOOLCHAIN=${SOLEX_RUST_TOOLCHAIN:-stable}" \
-  --build-arg "RUSTUP_INIT_URL=${SOLEX_RUSTUP_INIT_URL:-https://sh.rustup.rs}" \
-  --build-arg "RUSTUP_DIST_SERVER=${SOLEX_RUSTUP_DIST_SERVER:-https://static.rust-lang.org}" \
-  --build-arg "RUSTUP_UPDATE_ROOT=${SOLEX_RUSTUP_UPDATE_ROOT:-https://static.rust-lang.org/rustup}" \
+  --build-arg "RUST_BUILDER_IMAGE=${SOLEX_RUST_BUILDER_IMAGE:-rust:bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b}" \
   "$root_dir"
 artifact_container=$(docker create --entrypoint /bin/true "$artifact_image")
 docker cp "$artifact_container:/out/." "$output_dir/"

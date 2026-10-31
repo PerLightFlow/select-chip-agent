@@ -13,7 +13,7 @@ from urllib.parse import urlsplit, unquote
 
 SOURCE = Path(__file__).resolve().parent
 UI_SOURCE = SOURCE.parent / 'solex-ui'
-APP_RUNTIME = 'wechatopenai/weknora@sha256:25b20959b7456f7842ef55ed4feff3694dbd0c6f8af4117c1fb3c5dec6bdf14d'
+APP_RUNTIME = 'wechatopenai/weknora-app@sha256:25b20959b7456f7842ef55ed4feff3694dbd0c6f8af4117c1fb3c5dec6bdf14d'
 UI_RUNTIME = 'wechatopenai/weknora-ui@sha256:df26705d866997db07f3da78dabedc4f594b383566a3996810c166a5c6bee393'
 SCRIPTS = ('apply.sh', 'deploy.py', 'api_client.py', 'acceptance.py', 'stream_check.py')
 EVIDENCE = ('go-build-info.txt', 'runtime-libraries.txt', 'WeKnora.sha256')

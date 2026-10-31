@@ -2,12 +2,12 @@
 # Build from the repository root. This stage is only for pre-release builds;
 # the production release installs its exported binary onto the pinned runtime.
 ARG GO_BUILDER_IMAGE=golang:1.26-bookworm@sha256:23ce71337b726608afb1bc00986e630a05034a87a87ea1fc2cd1ae5cf33387eb
+ARG RUST_BUILDER_IMAGE=rust:bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
 FROM ${GO_BUILDER_IMAGE} AS go-dependencies
 WORKDIR /src/weknora
 
 ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
-ARG RUST_TOOLCHAIN=stable
 ENV CGO_ENABLED=1 \
     GOMAXPROCS=4 \
     CARGO_BUILD_JOBS=4 \
@@ -21,21 +21,22 @@ ENV CGO_ENABLED=1 \
 COPY weknora/go.mod weknora/go.sum ./
 COPY weknora/third_party/anydoc-go/go.mod third_party/anydoc-go/go.mod
 RUN sha256sum go.mod go.sum > /tmp/go-locks.sha256 \
-    && go mod download && go mod verify \
+    && go list -m -f '{{if not .Main}}{{if .Replace}}{{if .Replace.Version}}{{.Replace.Path}}@{{.Replace.Version}}{{end}}{{else}}{{.Path}}@{{.Version}}{{end}}{{end}}' all > /tmp/go-all-modules \
+    && awk -v platform="$(go env GOOS)-$(go env GOARCH)" \
+         'NF && ($0 !~ /^github.com\/duckdb\/duckdb-go-bindings\/lib\// || index($0, "/" platform "@"))' \
+       /tmp/go-all-modules > /tmp/go-modules \
+    && xargs go mod download < /tmp/go-modules && go mod verify \
     && sha256sum -c /tmp/go-locks.sha256
 
+FROM ${RUST_BUILDER_IMAGE} AS rust-toolchain
+
 FROM go-dependencies AS dependencies
-ARG RUST_TOOLCHAIN=stable
-ARG RUSTUP_INIT_URL=https://sh.rustup.rs
-ARG RUSTUP_DIST_SERVER=https://static.rust-lang.org
-ARG RUSTUP_UPDATE_ROOT=https://static.rust-lang.org/rustup
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl git build-essential pkg-config libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
-RUN curl --proto '=https' --tlsv1.2 -sSf "${RUSTUP_INIT_URL}" -o /tmp/rustup-init.sh \
-    && RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER}" RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT}" \
-       sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain "${RUST_TOOLCHAIN}" \
-    && rm /tmp/rustup-init.sh
+COPY --from=rust-toolchain /usr/local/rustup /opt/rustup
+COPY --from=rust-toolchain /usr/local/cargo /opt/cargo
+RUN rustc --version && cargo --version
 
 FROM dependencies AS builder
 COPY weknora/third_party/anydoc-go/ third_party/anydoc-go/
