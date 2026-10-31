@@ -9,6 +9,8 @@ ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
 ARG RUST_TOOLCHAIN=stable
 ENV CGO_ENABLED=1 \
+    GOMAXPROCS=4 \
+    CARGO_BUILD_JOBS=4 \
     GOFLAGS=-mod=readonly \
     GOTOOLCHAIN=local \
     GOPROXY=${GOPROXY} \
@@ -36,11 +38,13 @@ RUN curl --proto '=https' --tlsv1.2 -sSf "${RUSTUP_INIT_URL}" -o /tmp/rustup-ini
     && rm /tmp/rustup-init.sh
 
 FROM dependencies AS builder
-COPY weknora/ ./
+COPY weknora/third_party/anydoc-go/ third_party/anydoc-go/
+COPY weknora/scripts/build-anydoc-lib.sh scripts/build-anydoc-lib.sh
 
 # Keep the native AnyDoc engine: its static archive is linked into the binary
 # and cannot be recovered from the currently running app image.
 RUN bash scripts/build-anydoc-lib.sh
+COPY weknora/ ./
 
 ARG SOURCE_COMMIT
 ARG SOURCE_VERSION=solex-managed-runtime
